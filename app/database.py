@@ -28,14 +28,22 @@ Base = declarative_base()
 
 async def test_db_connection():
     """Test database connection without creating tables."""
-    try:
-        # Use a connection from the pool
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        print(f"Database connection test failed: {e}")
-        return False
+    max_retries = 5
+    retry_delay = 5  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            # Use a connection from the pool
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return True
+        except Exception as e:
+            print(f"Database connection test failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                print("All database connection attempts failed")
+                return False
 
 # Dependency
 def get_db():

@@ -3,7 +3,7 @@ builder = "NIXPACKS"
 buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port=${PORT}"
+startCommand = "python -c 'import time; time.sleep(5)' && python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port=${PORT} --timeout-keep-alive 75"
 restartPolicyType = "on_failure"
 healthcheckPath = "/up"
 healthcheckTimeout = 180

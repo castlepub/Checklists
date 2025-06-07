@@ -97,6 +97,9 @@ class ChecklistSubmission(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
+    # First check if it's a health check request (based on user agent or headers)
+    if request.headers.get("user-agent", "").lower().startswith("railway"):
+        return JSONResponse({"status": "ok"})
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/api/checklists/{checklist_id}/chores", response_model=List[ChoreResponse])
