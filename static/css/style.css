@@ -60,6 +60,42 @@ body {
     margin: 0;
     font-weight: 600;
     border-bottom: 2px solid #dee2e6;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    color: #495057;
+    cursor: pointer;
+}
+
+.section-header:hover {
+    background-color: #e9ecef;
+}
+
+.section-header h3 {
+    font-size: 1.1rem;
+    margin: 0;
+    color: #495057;
+}
+
+.section-header .form-check-input {
+    width: 1.5em;
+    height: 1.5em;
+    cursor: pointer;
+}
+
+/* Section chores container */
+.section-chores {
+    border-bottom: 1px solid #dee2e6;
+    background: white;
+}
+
+/* Sub-headers */
+.sub-header {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    font-weight: 500;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 1rem;
+    margin: 0;
 }
 
 /* Comment input styling */

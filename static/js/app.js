@@ -67,15 +67,27 @@ document.addEventListener('DOMContentLoaded', function() {
         choresContainer.innerHTML = '';
         let currentSection = '';
         let completedCount = 0;
+        let sectionChores = [];
         
         currentChores.forEach(chore => {
             // Check for section headers (denoted by # in the description)
             if (chore.description.startsWith('# ')) {
+                // If we were collecting chores for a previous section, render it
+                if (currentSection && sectionChores.length > 0) {
+                    renderSection(currentSection, sectionChores);
+                    sectionChores = [];
+                }
+                
                 currentSection = chore.description.substring(2);
-                const sectionHeader = document.createElement('h3');
-                sectionHeader.className = 'section-header';
-                sectionHeader.textContent = currentSection;
-                choresContainer.appendChild(sectionHeader);
+                return;
+            }
+
+            // Check for sub-headers (denoted by - at the start)
+            if (chore.description.startsWith('- ')) {
+                const subHeader = document.createElement('div');
+                subHeader.className = 'sub-header ps-3 py-2';
+                subHeader.textContent = chore.description.substring(2);
+                choresContainer.appendChild(subHeader);
                 return;
             }
 
@@ -83,6 +95,62 @@ document.addEventListener('DOMContentLoaded', function() {
                 completedCount++;
             }
 
+            // Add chore to current section
+            if (currentSection) {
+                sectionChores.push(chore);
+            } else {
+                // If no section, render chore directly
+                renderChore(chore);
+            }
+        });
+
+        // Render the last section if any
+        if (currentSection && sectionChores.length > 0) {
+            renderSection(currentSection, sectionChores);
+        }
+
+        // Update progress bar
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = (completedCount / currentChores.length) * 100;
+        progressBar.querySelector('.progress-bar').style.width = `${progressPercentage}%`;
+        progressBar.classList.remove('d-none');
+
+        updateSignatureSection();
+    }
+
+    function renderSection(sectionName, sectionChores) {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'section';
+
+        // Create section header with checkbox
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'section-header d-flex align-items-center';
+        
+        const allCompleted = sectionChores.every(chore => chore.completed);
+        const someCompleted = sectionChores.some(chore => chore.completed);
+        
+        headerDiv.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input section-checkbox" type="checkbox" 
+                       id="section-${sectionName.replace(/\s+/g, '-')}"
+                       ${allCompleted ? 'checked' : ''}>
+            </div>
+            <h3 class="mb-0 ms-2">${sectionName}</h3>
+        `;
+
+        // Add indeterminate state if some but not all chores are completed
+        if (someCompleted && !allCompleted) {
+            headerDiv.querySelector('.section-checkbox').indeterminate = true;
+        }
+
+        sectionDiv.appendChild(headerDiv);
+
+        // Create container for section's chores
+        const choresDiv = document.createElement('div');
+        choresDiv.className = 'section-chores ps-4';
+
+        // Add each chore to the section
+        sectionChores.forEach(chore => {
             const choreDiv = document.createElement('div');
             choreDiv.className = `chore-item ${chore.completed ? 'completed' : ''}`;
             
@@ -106,7 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             choreDiv.innerHTML = `
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="chore-${chore.id}" 
+                    <input class="form-check-input chore-checkbox" type="checkbox" 
+                           id="chore-${chore.id}" data-section="${sectionName}"
                            ${chore.completed ? 'checked' : ''}>
                 </div>
                 <div class="flex-grow-1">
@@ -123,39 +192,100 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
 
-            // Add touch-friendly event listeners
-            const checkbox = choreDiv.querySelector('input[type="checkbox"]');
-            const label = choreDiv.querySelector('.form-check-label');
-
-            // Make the entire chore item clickable
-            choreDiv.addEventListener('click', (e) => {
-                // Don't toggle if clicking the comment input
-                if (e.target.type !== 'text') {
-                    checkbox.checked = !checkbox.checked;
-                    handleChoreCompletion(chore.id, checkbox);
-                }
+            // Add event listeners
+            const checkbox = choreDiv.querySelector('.chore-checkbox');
+            checkbox.addEventListener('change', () => {
+                handleChoreCompletion(chore.id, checkbox);
+                updateSectionCheckbox(sectionName);
             });
 
-            // Prevent double-triggering when clicking checkbox directly
-            checkbox.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-
-            // Handle comment input
             const commentInput = choreDiv.querySelector('input[type="text"]');
             commentInput.addEventListener('click', (e) => e.stopPropagation());
             commentInput.addEventListener('change', () => handleChoreComment(chore.id, commentInput.value));
 
-            choresContainer.appendChild(choreDiv);
+            choresDiv.appendChild(choreDiv);
         });
 
-        // Update progress bar
-        const progressBar = document.getElementById('progressBar');
-        const progressPercentage = (completedCount / currentChores.length) * 100;
-        progressBar.querySelector('.progress-bar').style.width = `${progressPercentage}%`;
-        progressBar.classList.remove('d-none');
+        // Add section checkbox event listener
+        const sectionCheckbox = headerDiv.querySelector('.section-checkbox');
+        sectionCheckbox.addEventListener('change', () => {
+            const isChecked = sectionCheckbox.checked;
+            const choreCheckboxes = choresDiv.querySelectorAll('.chore-checkbox');
+            choreCheckboxes.forEach(checkbox => {
+                if (checkbox.checked !== isChecked) {
+                    checkbox.checked = isChecked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        });
 
-        updateSignatureSection();
+        sectionDiv.appendChild(choresDiv);
+        choresContainer.appendChild(sectionDiv);
+    }
+
+    function renderChore(chore) {
+        const choreDiv = document.createElement('div');
+        choreDiv.className = `chore-item ${chore.completed ? 'completed' : ''}`;
+        
+        // Format completion time if exists
+        let completionInfo = '';
+        if (chore.completed && chore.completed_by && chore.completed_at) {
+            const completedDate = new Date(chore.completed_at);
+            const timeString = completedDate.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            completionInfo = `
+                <div class="completion-info">
+                    <small class="text-success">
+                        ✓ Done by ${chore.completed_by} at ${timeString}
+                    </small>
+                </div>
+            `;
+        }
+
+        choreDiv.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input chore-checkbox" type="checkbox" 
+                       id="chore-${chore.id}"
+                       ${chore.completed ? 'checked' : ''}>
+            </div>
+            <div class="flex-grow-1">
+                <label class="form-check-label" for="chore-${chore.id}">
+                    ${chore.description}
+                </label>
+                ${completionInfo}
+                <div class="chore-comment">
+                    <input type="text" class="form-control form-control-sm" 
+                           placeholder="Add comment (optional)" 
+                           value="${chore.comment || ''}"
+                           data-chore-id="${chore.id}">
+                </div>
+            </div>
+        `;
+
+        // Add event listeners
+        const checkbox = choreDiv.querySelector('.chore-checkbox');
+        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox));
+
+        const commentInput = choreDiv.querySelector('input[type="text"]');
+        commentInput.addEventListener('click', (e) => e.stopPropagation());
+        commentInput.addEventListener('change', () => handleChoreComment(chore.id, commentInput.value));
+
+        choresContainer.appendChild(choreDiv);
+    }
+
+    function updateSectionCheckbox(sectionName) {
+        const sectionCheckbox = document.querySelector(`#section-${sectionName.replace(/\s+/g, '-')}`);
+        if (!sectionCheckbox) return;
+
+        const choreCheckboxes = Array.from(document.querySelectorAll(`.chore-checkbox[data-section="${sectionName}"]`));
+        const allChecked = choreCheckboxes.every(cb => cb.checked);
+        const someChecked = choreCheckboxes.some(cb => cb.checked);
+
+        sectionCheckbox.checked = allChecked;
+        sectionCheckbox.indeterminate = someChecked && !allChecked;
     }
 
     async function handleChoreCompletion(choreId, checkbox) {
