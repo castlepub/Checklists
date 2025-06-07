@@ -12,6 +12,6 @@ numReplicas = 1
 
 [variables]
 DATABASE_URL = "${{ Postgres.DATABASE_URL }}"
-TELEGRAM_BOT_TOKEN = "${{ Telegram.BOT_TOKEN }}"
-TELEGRAM_CHAT_ID = "${{ Telegram.CHAT_ID }}"
-TELEGRAM_WEBHOOK_URL = "${{ RAILWAY_PUBLIC_DOMAIN }}/telegram/webhook" 
+# You need to set these values in Railway's dashboard
+# TELEGRAM_BOT_TOKEN = "your_bot_token"
+# TELEGRAM_CHAT_ID = "your_chat_id" 

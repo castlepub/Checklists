@@ -5,14 +5,24 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .database import SessionLocal
+import asyncio
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TelegramNotifier:
     def __init__(self):
+        # Log all environment variables (except sensitive ones)
+        env_vars = {k: '***' if 'TOKEN' in k else v for k, v in os.environ.items()}
+        logger.info(f"Environment variables: {env_vars}")
+        
         self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         self.chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        
+        logger.info("Initializing Telegram notifier...")
+        logger.info(f"Bot token present: {bool(self.bot_token)}")
+        logger.info(f"Chat ID present: {bool(self.chat_id)}")
         
         if not self.bot_token:
             logger.error("TELEGRAM_BOT_TOKEN not configured")
@@ -25,6 +35,23 @@ class TelegramNotifier:
         self.send_message_url = f"{self.api_url}/sendMessage"
         logger.info("Telegram bot initialized successfully")
         logger.info(f"Using chat ID: {self.chat_id}")
+        
+        # Test the bot token by getting bot info
+        asyncio.create_task(self._test_bot_connection())
+
+    async def _test_bot_connection(self):
+        """Test the bot connection by getting bot info."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.api_url}/getMe") as response:
+                    if response.status == 200:
+                        bot_info = await response.json()
+                        logger.info(f"Connected to Telegram bot: {bot_info}")
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to connect to Telegram bot. Status: {response.status}, Response: {error_text}")
+        except Exception as e:
+            logger.error(f"Error testing bot connection: {str(e)}")
 
     async def send_message(self, text: str):
         if not self.bot_token or not self.chat_id:
@@ -33,7 +60,7 @@ class TelegramNotifier:
 
         async with aiohttp.ClientSession() as session:
             try:
-                logger.info(f"Sending Telegram message: {text}")
+                logger.info(f"Sending Telegram message to chat {self.chat_id}: {text}")
                 async with session.post(
                     self.send_message_url,
                     json={
@@ -43,10 +70,15 @@ class TelegramNotifier:
                     }
                 ) as response:
                     result = await response.json()
+                    response_text = await response.text()
+                    logger.info(f"Telegram API response: {response_text}")
+                    
                     if response.status == 200 and result.get('ok'):
                         logger.info("Telegram message sent successfully")
                     else:
                         logger.error(f"Telegram API error: {result}")
+                        if 'description' in result:
+                            logger.error(f"Error description: {result['description']}")
                     return result
             except aiohttp.ClientError as e:
                 logger.error(f"Telegram HTTP error: {str(e)}")
@@ -56,16 +88,19 @@ class TelegramNotifier:
     async def notify_chore_completion(self, staff_name: str, chore_description: str):
         time = datetime.now().strftime("%H:%M")
         message = f"{staff_name} marked '{chore_description}' as done at {time}"
+        logger.info(f"Notifying chore completion: {message}")
         await self.send_message(message)
 
     async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
         time = datetime.now().strftime("%H:%M")
         message = f"{staff_name} COMPLETED FULL {checklist_name} at {time} ✅"
+        logger.info(f"Notifying checklist completion: {message}")
         await self.send_message(message)
 
 # Create the Telegram notifier instance
 try:
     telegram = TelegramNotifier()
+    logger.info("Successfully created Telegram notifier instance")
 except Exception as e:
     logger.error(f"Failed to initialize Telegram notifier: {str(e)}")
     # Create a dummy notifier that logs but doesn't send messages
@@ -76,4 +111,5 @@ except Exception as e:
             logger.warning(f"Would have notified completion: {staff_name} - {chore_description}")
         async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
             logger.warning(f"Would have notified checklist completion: {staff_name} - {checklist_name}")
-    telegram = DummyNotifier() 
+    telegram = DummyNotifier()
+    logger.info("Using dummy notifier due to initialization failure") 
