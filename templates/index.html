@@ -2,22 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Castle Pub Checklists</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.css" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
+    <!-- Add iOS web app capability -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Castle Checklists">
 </head>
 <body class="bg-light">
-    <div class="container py-4">
-        <h1 class="text-center mb-4">Castle Pub Checklists</h1>
+    <div class="container py-3">
+        <h1 class="text-center mb-3">Castle Pub Checklists</h1>
         
         <!-- Checklist Selection -->
-        <div class="card mb-4">
+        <div class="card mb-3 shadow-sm">
             <div class="card-body">
                 <div class="mb-3">
-                    <label for="checklistSelect" class="form-label">Select Checklist:</label>
-                    <select class="form-select" id="checklistSelect">
+                    <label for="checklistSelect" class="form-label fw-bold">Select Checklist:</label>
+                    <select class="form-select form-select-lg" id="checklistSelect">
                         <option value="">Choose a checklist...</option>
                         <option value="opening">Opening Checklist</option>
                         <option value="closing">Closing Checklist</option>
@@ -28,12 +32,12 @@
                 </div>
                 
                 <div class="mb-3">
-                    <label for="staffSelect" class="form-label">Your Name:</label>
-                    <select class="form-select" id="staffSelect">
+                    <label for="staffSelect" class="form-label fw-bold">Your Name:</label>
+                    <select class="form-select form-select-lg" id="staffSelect">
                         <option value="">Select your name...</option>
                         <option value="Nora">Nora</option>
                         <option value="Josh">Josh</option>
-                        <option value="Viale">Viale</option>
+                        <option value="Vaile">Vaile</option>
                         <option value="Melissa">Melissa</option>
                         <option value="Paddy">Paddy</option>
                         <option value="Pero">Pero</option>
@@ -46,10 +50,14 @@
             </div>
         </div>
 
+        <!-- Progress Bar -->
+        <div id="progressBar" class="progress mb-3 d-none">
+            <div class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+        </div>
+
         <!-- Chores List -->
-        <div id="choresList" class="card mb-4 d-none">
-            <div class="card-body">
-                <h2 class="card-title h4 mb-3">Tasks</h2>
+        <div id="choresList" class="card mb-3 d-none shadow-sm">
+            <div class="card-body p-0">
                 <div id="choresContainer">
                     <!-- Chores will be populated here -->
                 </div>
@@ -57,13 +65,19 @@
         </div>
 
         <!-- Signature Pad -->
-        <div id="signatureSection" class="card mb-4 d-none">
+        <div id="signatureSection" class="card mb-3 d-none shadow">
             <div class="card-body">
-                <h2 class="card-title h4 mb-3">Sign to Complete</h2>
-                <canvas id="signaturePad" class="border rounded mb-2"></canvas>
+                <h2 class="card-title h5 mb-3">Sign to Complete</h2>
+                <canvas id="signaturePad" class="mb-3"></canvas>
                 <div class="d-flex gap-2">
-                    <button id="clearSignature" class="btn btn-outline-secondary">Clear</button>
-                    <button id="submitChecklist" class="btn btn-primary">Submit Checklist</button>
+                    <button id="clearSignature" class="btn btn-outline-secondary flex-grow-1">Clear</button>
+                    <button id="submitChecklist" class="btn btn-success flex-grow-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check2-circle me-1" viewBox="0 0 16 16">
+                            <path d="M2.5 8a5.5 5.5 0 0 1 8.25-4.764.5.5 0 0 0 .5-.866A6.5 6.5 0 1 0 14.5 8a.5.5 0 0 0-1 0 5.5 5.5 0 1 1-11 0z"/>
+                            <path d="M15.354 3.354a.5.5 0 0 0-.708-.708L8 9.293 5.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z"/>
+                        </svg>
+                        Submit Checklist
+                    </button>
                 </div>
             </div>
         </div>

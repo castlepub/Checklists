@@ -48,22 +48,33 @@ async def init_db():
             # Now check if we need to seed the database
             db = SessionLocal()
             try:
-                # Create a new session and explicitly begin a transaction
-                logger.info("Checking if database needs seeding...")
-                result = db.execute(text("SELECT COUNT(*) FROM checklists"))
-                count = result.scalar()
-                
-                if count == 0:
-                    logger.info("Database is empty, seeding initial data...")
-                    from .seed_data import seed_database
-                    seed_database(db)
-                    logger.info("Database seeded successfully")
-                else:
-                    logger.info("Database already contains data, skipping seeding")
+                # Check if tables exist by querying the checklists table
+                try:
+                    result = db.execute(text("SELECT COUNT(*) FROM checklists"))
+                    count = result.scalar()
+                    if count == 0:
+                        logger.info("Database is empty, seeding initial data...")
+                        from .seed_data import seed_database
+                        seed_database(db)
+                        db.commit()
+                        logger.info("Database seeded successfully")
+                    else:
+                        logger.info(f"Database already contains {count} checklists, skipping seeding")
+                except Exception as table_error:
+                    if "relation" in str(table_error) and "does not exist" in str(table_error):
+                        logger.info("Tables don't exist, creating and seeding database...")
+                        Base.metadata.create_all(bind=engine)
+                        from .seed_data import seed_database
+                        seed_database(db)
+                        db.commit()
+                        logger.info("Database created and seeded successfully")
+                    else:
+                        raise
                 
                 return  # Success - exit the function
             except Exception as e:
                 logger.error(f"Error during database check/seeding: {str(e)}")
+                db.rollback()
                 raise
             finally:
                 db.close()

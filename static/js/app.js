@@ -5,7 +5,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const choresList = document.getElementById('choresList');
     const choresContainer = document.getElementById('choresContainer');
     const signatureSection = document.getElementById('signatureSection');
-    const signaturePad = new SignaturePad(document.getElementById('signaturePad'));
+    const signaturePad = new SignaturePad(document.getElementById('signaturePad'), {
+        minWidth: 2,
+        maxWidth: 4,
+        penColor: "rgb(0, 0, 0)"
+    });
     const clearSignatureBtn = document.getElementById('clearSignature');
     const submitChecklistBtn = document.getElementById('submitChecklist');
 
@@ -16,6 +20,18 @@ document.addEventListener('DOMContentLoaded', function() {
     staffSelect.addEventListener('change', updateUI);
     clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
     submitChecklistBtn.addEventListener('click', submitChecklist);
+
+    // Handle orientation change for signature pad
+    window.addEventListener('resize', resizeSignaturePad);
+
+    function resizeSignaturePad() {
+        const canvas = document.getElementById('signaturePad');
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext("2d").scale(ratio, ratio);
+        signaturePad.clear(); // Clear and reset the signature pad
+    }
 
     function updateUI() {
         const checklistSelected = checklistSelect.value !== '';
@@ -40,6 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderChores();
             choresList.classList.remove('d-none');
             updateSignatureSection();
+            resizeSignaturePad();
         } catch (error) {
             console.error('Error loading checklist:', error);
             alert('Failed to load checklist. Please try again.');
@@ -48,10 +65,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderChores() {
         choresContainer.innerHTML = '';
+        let currentSection = '';
         
         currentChores.forEach(chore => {
+            // Check for section headers (denoted by # in the description)
+            if (chore.description.startsWith('# ')) {
+                currentSection = chore.description.substring(2);
+                const sectionHeader = document.createElement('h3');
+                sectionHeader.className = 'section-header';
+                sectionHeader.textContent = currentSection;
+                choresContainer.appendChild(sectionHeader);
+                return;
+            }
+
             const choreDiv = document.createElement('div');
-            choreDiv.className = 'chore-item';
+            choreDiv.className = `chore-item ${chore.completed ? 'completed' : ''}`;
             choreDiv.innerHTML = `
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="chore-${chore.id}" 
@@ -70,10 +98,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
 
+            // Add touch-friendly event listeners
             const checkbox = choreDiv.querySelector('input[type="checkbox"]');
-            checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox));
+            const label = choreDiv.querySelector('.form-check-label');
 
+            // Make the entire chore item clickable
+            choreDiv.addEventListener('click', (e) => {
+                // Don't toggle if clicking the comment input
+                if (e.target.type !== 'text') {
+                    checkbox.checked = !checkbox.checked;
+                    handleChoreCompletion(chore.id, checkbox);
+                }
+            });
+
+            // Prevent double-triggering when clicking checkbox directly
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // Handle comment input
             const commentInput = choreDiv.querySelector('input[type="text"]');
+            commentInput.addEventListener('click', (e) => e.stopPropagation());
             commentInput.addEventListener('change', () => handleChoreComment(chore.id, commentInput.value));
 
             choresContainer.appendChild(choreDiv);
