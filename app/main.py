@@ -26,58 +26,74 @@ load_dotenv()
 # Global variable to track application readiness
 is_app_ready = False
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global is_app_ready
-    logger.info("Application startup initiated")
-    
-    # Don't wait for database to mark app as ready
-    is_app_ready = True
-    logger.info("Application marked as ready")
-    
-    # Start database initialization in the background
-    asyncio.create_task(initialize_database())
-    
-    yield
-    
-    # Shutdown
-    logger.info("Application shutdown initiated")
-    engine.dispose()
-    logger.info("Database connections disposed")
-
-async def initialize_database():
-    """Initialize database in the background"""
-    retries = 5
-    for i in range(retries):
+async def init_db():
+    logger.info("Database initialization attempt started")
+    max_attempts = 5
+    attempt = 1
+    while attempt <= max_attempts:
         try:
-            logger.info(f"Database initialization attempt {i + 1}/{retries}")
+            logger.info(f"Database initialization attempt {attempt}/{max_attempts}")
+            
+            # First test the connection
+            logger.info("Testing database connection...")
             await test_db_connection()
             logger.info("Database connection successful")
             
-            # Create tables
+            # Create all tables
+            logger.info("Creating database tables...")
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
-
-            # Check if we need to seed the database
+            
+            # Now check if we need to seed the database
             db = SessionLocal()
             try:
-                checklist_count = db.query(Checklist).count()
-                if checklist_count == 0:
-                    logger.info("No checklists found, seeding database...")
+                # Create a new session and explicitly begin a transaction
+                logger.info("Checking if database needs seeding...")
+                result = db.execute("SELECT COUNT(*) FROM checklists")
+                count = result.scalar()
+                
+                if count == 0:
+                    logger.info("Database is empty, seeding initial data...")
                     from .seed_data import seed_database
                     seed_database(db)
                     logger.info("Database seeded successfully")
                 else:
-                    logger.info(f"Found {checklist_count} existing checklists, skipping seed")
+                    logger.info("Database already contains data, skipping seeding")
+                
+                return  # Success - exit the function
+            except Exception as e:
+                logger.error(f"Error during database check/seeding: {str(e)}")
+                raise
             finally:
                 db.close()
-            
-            break
+                
         except Exception as e:
-            logger.error(f"Database initialization attempt {i + 1} failed: {e}")
-            if i < retries - 1:
+            logger.error(f"Database initialization attempt {attempt} failed: {str(e)}")
+            if attempt < max_attempts:
                 logger.info("Retrying database initialization in 5 seconds...")
                 await asyncio.sleep(5)
+                attempt += 1
+            else:
+                logger.error("All database initialization attempts failed")
+                raise
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Application startup
+    logger.info("Application startup initiated")
+    
+    # Mark the application as ready before database initialization
+    logger.info("Application marked as ready")
+    
+    # Start database initialization in the background
+    asyncio.create_task(init_db())
+    
+    yield
+    
+    # Application shutdown
+    logger.info("Application shutdown initiated")
+    engine.dispose()
+    logger.info("Database connections disposed")
 
 app = FastAPI(
     title="Castle Checklist App",
