@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from .database import get_db, engine, Base, test_db_connection
+from .database import get_db, engine, Base, test_db_connection, SessionLocal
 from .models import Checklist, Chore, ChoreCompletion, Signature
 from .telegram import telegram
 
