@@ -63,52 +63,169 @@ def seed_database(db: Session):
             "name": "closing",
             "description": "Closing Checklist",
             "chores": [
-                "Clean all surfaces and equipment",
-                "Empty and clean ice bins",
-                "Restock bar for next shift",
-                "Clean and organize glassware",
-                "Empty trash bins",
-                "Count and record till",
-                "Turn off all equipment",
-                "Set alarm and lock up"
+                # Beer Garden
+                "Collect, empty all ashtrays in beer garden",
+                "Close umbrellas, marquee",
+                "Close doors at the front of the bar, windows and doors at the back at 10pm because of noise",
+                "Empty beer garden bins",
+                "Turn off lights and block off the back door at 10pm",
+                
+                # Stock up
+                "Take pfand downstairs, sort into correct crates - The crates must be the same the bottles came in",
+                "Fill ice bag ½ full and lie flat in freezer, so ice doesn't stick together",
+                "Stock up all fridges, including wine, tonic, mixers and fridge drawers - 12 of each tonic flavour",
+                
+                # Floor
+                "Check toilets are empty and restock toilet paper, empty bins, soap",
+                "Correct all furniture that has been moved throughout shift",
+                "Clean all tables (reset menus x2) and clean bar tops",
+                "Sweep floors, mop spillages",
+                
+                # Street
+                "Bring in A boards and big ashtray",
+                "Close doors and lock",
+                "Sweep street in front of doors",
+                
+                # Bar
+                "Clean Coffee Machine (use cleaning tab on Sunday Night)",
+                "Empty drip trays and clean. Put them back once dry. Clean surfaces underneath.",
+                "Pour hot water down drain under taps",
+                "Write down wastage on the google sheet",
+                "Douche taps, wipe nozzles clean and clean tap handles using disinfectant spray. Turn off",
+                "Clean all chopping boards, measures and ice bucket / scoop",
+                "Drain dishwasher and clean filter, blades, insides including plug. Leave propped open so it airs out",
+                "Sweep behind bar",
+                "Take out all trash bags, cardboard",
+                "Clean Sinks, including hand wash sink",
+                
+                # Cash
+                "Count silver tin to 250 and sign sheet inside",
+                "Print Shift Report",
+                "All Staff Clock out of lightspeed",
+                "Using Blue Ipad Open End of Day Link and input details after counting Cash downstairs",
+                "Lock all cash including, silver tin, black ipad tin, downstairs in keg room - including the keys with fob",
+                
+                # Final Checks
+                "Turn off all lamps, remote lights, fans and main light switches near the beer taps.",
+                "Check all doors and windows are closed and locked",
+                "Double lock doors downstairs",
+                "Security walk round, checking toilets and all windows/doors",
+                "Check jobs not done on list haven't been signed and notifying the person opening"
             ]
         },
         {
             "name": "kitchen-opening",
             "description": "Kitchen Opening Checklist",
             "chores": [
-                "Turn on all kitchen equipment",
-                "Check and record freezer temperatures",
-                "Prep mise en place",
-                "Check stock levels",
-                "Clean and sanitize work surfaces",
-                "Prepare daily specials"
+                # Oven
+                "Using wet cloth wipe doors and edges, removing any soot and grease",
+                "Make sure oven is set to correct temperature",
+                "Turn on extractor fan",
+                
+                # Fridges
+                "Check dough and bring up more if its a busy day",
+                "Look at stock of cheese and toppings and make note of any missing.",
+                "Fill metal containers for the day",
+                "Clean fridges, including the seal around door",
+                
+                # Prep area
+                "Turn on lights above counter tops",
+                "Place pizza cutters on plate",
+                "Set up scoops and spoons above food area",
+                
+                # Prep for busy shifts / during shift
+                "Bring up extra stock, ie Pizza Sauce, Cheese etc",
+                "Put extra stock into plasic containers. *Write the expiry date on the lid*",
+                "Organize fridges, ie bring food that is expiring first to the top.",
+                "Fill flour and oil containers",
+                
+                # Temperature Check
+                "Temperature of Cheese Fridge in Stock room @15:00"
             ]
         },
         {
             "name": "kitchen-closing",
             "description": "Kitchen Closing Checklist",
             "chores": [
-                "Clean and sanitize all surfaces",
-                "Store and label leftover ingredients",
-                "Clean and maintain equipment",
-                "Empty and clean bins",
-                "Sweep and mop floors",
-                "Turn off all equipment"
+                # Oven
+                "Clean oven using the brush",
+                "Turn off oven",
+                "Turn off extractor fan",
+                
+                # Prep Area
+                "Remove all pizza cutters, spoons etc and place in dishwasher",
+                "Remove lids from metal containers and place in dishwasher",
+                "Remove containers from fridge and wash any empty or dirty ones in dishwasher",
+                "Clean inside the fridge area with tissue, removing any food bits and excess water",
+                "Using a damp cloth clean the rims and outside of containers",
+                "Cover containers with clingfilm",
+                "Place containers back in fridge and cover with lids",
+                "Clean inside the microwave with sanitizer",
+                "Spray down prep area with sanitizer and wipe using cloth",
+                "Place pizza cutters and utensils back",
+                
+                # Fridge
+                "Bring up and bag dough (at least 50)",
+                "Wipe down inside of fridges of crumbs, and disinfect handles",
+                "Clean Pizza Shovel",
+                
+                # Floor/miscellaneous
+                "Sweep floor of any flour and food. (under fridges too)",
+                "Check all areas have been cleaned of all food and flour",
+                "Turn off Lights over prep area"
             ]
         },
         {
             "name": "weekly",
-            "description": "Weekly Cleaning",
+            "description": "Weekly Cleaning - ONE JOB EACH PER SHIFT MINIMUM - (Cross Out Fridges when complete)",
             "chores": [
-                "Deep clean beer lines",
-                "Clean and organize storage areas",
-                "Deep clean kitchen equipment",
-                "Check and maintain safety equipment",
-                "Clean windows and mirrors",
-                "Deep clean bathrooms",
-                "Update inventory records",
-                "Check and maintain pest control"
+                # Food
+                "Clean all inside and outside fridges, handles, and seals",
+                "- Cheese Fridge - Sauce Fridge",
+                "- Fruit fridge - Dough fridge - Ice freezer.",
+                "Deep clean salad bar, remove all water collected inside",
+                "Clean inside, underneath microwave",
+                "Oven, underneath, top, buttons, glass doors",
+                "Clean the oven ventilation hood",
+                "Deep clean the Air fryers",
+                "Replace pizza mop head with new one",
+                "Wash dirty cloths and aprons",
+                
+                # Cellar
+                "Collect all trash from keg room and office desk",
+                "Clean ice machine, scoop, area in general and chest freezer",
+                "Tidy Pfand/stock room",
+                "Organise keg room downstairs, clean floor, pipes",
+                "Clean ALL couplers",
+                
+                # Floor
+                "Clean green tiles at the bar and side bar",
+                "Clean glass of fridges, and handles using Glass Cleaner!!",
+                "Dust all light bulbs and lamps",
+                "Water houseplants, check with finger if soil is dry first at least 1inch deep",
+                "Cobwebs from corners",
+                "Replace Menus with new clean ones",
+                
+                # Street / Outside
+                "Deep sweep garden, wipe bins clean, remove trash from flower beds",
+                "Sweep around the building, front and side",
+                "Re-design A boards (Once per week)",
+                
+                # Bar
+                "Deep clean sink area",
+                "Take apart all parts of glass washer, scrub the inside and outside",
+                "Clean all glass shelves, wash mats - Wine Glass Shelf",
+                "- Gin Glass, Shot Glass shelf",
+                "- Pint Glass shelf, including shelves underneath",
+                "Dust all gin bottles and bottle shelves",
+                "Clean all fridge shelves and doors, handles, fridge seals",
+                "- Spirit Drawer - Mixer Drawer",
+                "- Prosecco Fridge - Tonic Fridge",
+                "- Wine Fridge - Black Drawers - Milk Drawer",
+                "Polish taps",
+                "Coffee Machine Area - Dust shelves, syrup bottles etc",
+                "Deep Clean Coffee Machine",
+                "Vacuum and Clean all fridge filters - especially food fridge"
             ]
         }
     ]
