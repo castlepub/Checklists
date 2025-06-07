@@ -32,6 +32,12 @@ RESET_END_TIME = time(8, 0)    # 8:00 AM
 # Global variables to track application state
 is_db_ready = False
 db_init_error = None
+startup_time = datetime.now()
+STARTUP_GRACE_PERIOD = 60  # seconds
+
+def is_within_startup_grace_period() -> bool:
+    """Check if we're still within the startup grace period"""
+    return (datetime.now() - startup_time).total_seconds() < STARTUP_GRACE_PERIOD
 
 def is_within_reset_window(current_time: time) -> bool:
     """Check if current time is within the reset window (6:00-8:00 AM)"""
@@ -199,12 +205,22 @@ class ChecklistSubmission(BaseModel):
 async def health_check():
     """
     Main health check endpoint that Railway uses to determine if the service is healthy.
-    Returns 200 OK only if the database is ready and connected.
+    Returns 200 OK during startup grace period or if database is ready and connected.
     """
     global is_db_ready, db_init_error
     
+    # Log the health check request
+    logger.info("Health check request received at /up")
+    logger.info(f"Database ready: {is_db_ready}, Init error: {db_init_error}")
+    
+    # During startup grace period, always return OK
+    if is_within_startup_grace_period():
+        logger.info("Within startup grace period - returning OK")
+        return {"status": "ok", "message": "Application starting"}
+    
     # If database initialization failed, return error
     if db_init_error is not None:
+        logger.error(f"Health check failed - DB init error: {db_init_error}")
         return JSONResponse(
             status_code=503,
             content={
@@ -215,6 +231,7 @@ async def health_check():
     
     # If database is not ready yet, return service unavailable
     if not is_db_ready:
+        logger.warning("Health check - DB not ready yet")
         return JSONResponse(
             status_code=503,
             content={
@@ -227,12 +244,17 @@ async def health_check():
     try:
         db = SessionLocal()
         try:
+            # Simple query to test connection
             db.execute(text("SELECT 1"))
+            logger.info("Health check passed - DB connection successful")
             return {"status": "ok"}
+        except Exception as e:
+            logger.error(f"Health check DB query failed: {str(e)}")
+            raise
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Health check database test failed: {str(e)}")
+        logger.error(f"Health check failed - DB connection error: {str(e)}")
         return JSONResponse(
             status_code=503,
             content={
