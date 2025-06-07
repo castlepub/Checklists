@@ -29,6 +29,10 @@ load_dotenv()
 RESET_START_TIME = time(6, 0)  # 6:00 AM
 RESET_END_TIME = time(8, 0)    # 8:00 AM
 
+# Global variables to track application state
+is_db_ready = False
+db_init_error = None
+
 def is_within_reset_window(current_time: time) -> bool:
     """Check if current time is within the reset window (6:00-8:00 AM)"""
     return RESET_START_TIME <= current_time <= RESET_END_TIME
@@ -63,10 +67,8 @@ def get_last_weekly_reset_time(now: datetime = None) -> datetime:
     last_reset = last_reset.replace(hour=6, minute=0, second=0, microsecond=0)
     return last_reset
 
-# Global variable to track application readiness
-is_app_ready = False
-
 async def init_db():
+    global is_db_ready, db_init_error
     logger.info("Database initialization attempt started")
     max_attempts = 5
     attempt = 1
@@ -110,6 +112,8 @@ async def init_db():
                     else:
                         raise
                 
+                is_db_ready = True
+                db_init_error = None
                 return  # Success - exit the function
             except Exception as e:
                 logger.error(f"Error during database check/seeding: {str(e)}")
@@ -126,6 +130,8 @@ async def init_db():
                 attempt += 1
             else:
                 logger.error("All database initialization attempts failed")
+                is_db_ready = False
+                db_init_error = str(e)
                 raise
 
 @asynccontextmanager
@@ -133,11 +139,8 @@ async def lifespan(app: FastAPI):
     # Application startup
     logger.info("Application startup initiated")
     
-    # Mark the application as ready before database initialization
-    logger.info("Application marked as ready")
-    
     # Start database initialization in the background
-    asyncio.create_task(init_db())
+    init_task = asyncio.create_task(init_db())
     
     yield
     
@@ -191,19 +194,57 @@ class ChecklistSubmission(BaseModel):
     staff_name: str
     signature_data: str
 
-# Simple health check endpoint for Railway
+# Health check endpoint for Railway
 @app.get("/up")
-async def railway_health_check():
-    logger.info("Health check request received at /up")
-    return {"status": "ok"}
+async def health_check():
+    """
+    Main health check endpoint that Railway uses to determine if the service is healthy.
+    Returns 200 OK only if the database is ready and connected.
+    """
+    global is_db_ready, db_init_error
+    
+    # If database initialization failed, return error
+    if db_init_error is not None:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "detail": f"Database initialization failed: {db_init_error}"
+            }
+        )
+    
+    # If database is not ready yet, return service unavailable
+    if not is_db_ready:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "initializing",
+                "detail": "Database initialization in progress"
+            }
+        )
+    
+    # Test current database connection
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            return {"status": "ok"}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Health check database test failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "detail": "Database connection test failed"
+            }
+        )
 
-# Root endpoint with health check support
-@app.get("/", response_class=HTMLResponse)
+# Root endpoint
+@app.get("/")
 async def root(request: Request):
-    # Always return ok for Railway health checks
-    if request.headers.get("user-agent", "").lower().startswith("railway"):
-        logger.info("Railway health check request received at /")
-        return JSONResponse({"status": "ok"})
+    # Return HTML response
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/api/checklists/{checklist_name}/chores")
@@ -301,7 +342,7 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
 @app.get("/health")
 async def health_check():
     # Always return healthy during startup
-    if not is_app_ready:
+    if not is_db_ready:
         return {
             "status": "starting",
             "timestamp": datetime.utcnow().isoformat()
