@@ -184,17 +184,19 @@ async def health_check():
         await test_db_connection()
         return {
             "status": "healthy",
-            "database": "connected",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        # Log the error but don't fail the health check
-        print(f"Database health check failed: {e}")
         return {
-            "status": "degraded",
-            "database": "disconnected",
+            "status": "unhealthy",
+            "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+# Railway health check endpoint
+@app.get("/up")
+async def railway_health_check():
+    return await health_check()
 
 # Database health check endpoint - separate from main health check
 @app.get("/health/database")
