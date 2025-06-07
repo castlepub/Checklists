@@ -124,5 +124,17 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
 
 # Health check endpoint
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy"} 
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        # Test database connection
+        db.execute("SELECT 1")
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "unhealthy", "error": str(e)}
+        ) 
