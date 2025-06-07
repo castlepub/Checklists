@@ -200,6 +200,11 @@ class ChecklistSubmission(BaseModel):
     staff_name: str
     signature_data: str
 
+class TelegramUpdate(BaseModel):
+    """Simplified Telegram Update model"""
+    update_id: int
+    message: Optional[dict] = None
+
 # Health check endpoint for Railway
 @app.get("/up")
 async def health_check():
@@ -359,6 +364,21 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
     await telegram.notify_checklist_completion(request.staff_name, checklist.name.upper())
 
     return {"status": "success"}
+
+# Telegram webhook endpoint
+@app.post("/telegram/webhook")
+async def telegram_webhook(update: TelegramUpdate):
+    """Handle incoming updates from Telegram."""
+    logger.info("Received Telegram update")
+    try:
+        await telegram.handle_update(update.dict())
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error processing Telegram update: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(e)}
+        )
 
 # Health check endpoint
 @app.get("/health")
