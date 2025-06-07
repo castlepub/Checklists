@@ -54,8 +54,24 @@ async def initialize_database():
             await test_db_connection()
             logger.info("Database connection successful")
             
+            # Create tables
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
+
+            # Check if we need to seed the database
+            db = SessionLocal()
+            try:
+                checklist_count = db.query(Checklist).count()
+                if checklist_count == 0:
+                    logger.info("No checklists found, seeding database...")
+                    from .seed_data import seed_database
+                    seed_database(db)
+                    logger.info("Database seeded successfully")
+                else:
+                    logger.info(f"Found {checklist_count} existing checklists, skipping seed")
+            finally:
+                db.close()
+            
             break
         except Exception as e:
             logger.error(f"Database initialization attempt {i + 1} failed: {e}")
@@ -125,20 +141,27 @@ async def root(request: Request):
 
 @app.get("/api/checklists/{checklist_id}/chores", response_model=List[ChoreResponse])
 async def get_checklist_chores(checklist_id: str, db: Session = Depends(get_db)):
-    checklist = db.query(Checklist).filter(Checklist.name == checklist_id).first()
-    if not checklist:
-        raise HTTPException(status_code=404, detail="Checklist not found")
-    
-    chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
-    return [
-        ChoreResponse(
-            id=chore.id,
-            description=chore.description,
-            order=chore.order,
-            completed=False,  # Reset completion status each time
-            comment=""
-        ) for chore in chores
-    ]
+    try:
+        logger.info(f"Fetching chores for checklist: {checklist_id}")
+        checklist = db.query(Checklist).filter(Checklist.name == checklist_id).first()
+        if not checklist:
+            logger.error(f"Checklist not found: {checklist_id}")
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
+        logger.info(f"Found {len(chores)} chores for checklist {checklist_id}")
+        return [
+            ChoreResponse(
+                id=chore.id,
+                description=chore.description,
+                order=chore.order,
+                completed=False,  # Reset completion status each time
+                comment=""
+            ) for chore in chores
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching chores: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching chores: {str(e)}")
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
