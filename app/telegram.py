@@ -27,8 +27,8 @@ class TelegramNotifier:
             self.send_message_url = f"{self.api_url}/sendMessage"
             self.set_commands_url = f"{self.api_url}/setMyCommands"
             self.set_webhook_url = f"{self.api_url}/setWebhook"
+            self.get_webhook_info_url = f"{self.api_url}/getWebhookInfo"
             logger.info("Telegram bot initialized successfully")
-            self._setup_bot()
         else:
             self.api_url = None
             logger.warning("Telegram bot not initialized due to missing credentials")
@@ -38,12 +38,34 @@ class TelegramNotifier:
         await self._setup_commands()
         await self._setup_webhook()
 
+    async def get_webhook_info(self):
+        """Get current webhook information."""
+        if not self.bot_token:
+            return {"error": "Bot token not configured"}
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(self.get_webhook_info_url) as response:
+                    return await response.json()
+            except Exception as e:
+                logger.error(f"Error getting webhook info: {str(e)}")
+                return {"error": str(e)}
+
     async def _setup_webhook(self):
         """Set up the webhook for receiving updates."""
         if not self.webhook_url:
             logger.error("Cannot set up webhook - TELEGRAM_WEBHOOK_URL not configured")
             return
 
+        # First, delete any existing webhook
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info("Removing existing webhook")
+                await session.post(f"{self.api_url}/deleteWebhook")
+            except Exception as e:
+                logger.error(f"Error deleting existing webhook: {str(e)}")
+
+        # Set up new webhook
         async with aiohttp.ClientSession() as session:
             try:
                 logger.info(f"Setting up webhook to {self.webhook_url}")
@@ -51,7 +73,8 @@ class TelegramNotifier:
                     self.set_webhook_url,
                     json={
                         "url": self.webhook_url,
-                        "allowed_updates": ["message"]
+                        "allowed_updates": ["message"],
+                        "drop_pending_updates": True
                     }
                 ) as response:
                     result = await response.json()
@@ -70,6 +93,7 @@ class TelegramNotifier:
         
         async with aiohttp.ClientSession() as session:
             try:
+                logger.info("Setting up bot commands")
                 async with session.post(
                     self.set_commands_url,
                     json={"commands": commands}

@@ -380,6 +380,48 @@ async def telegram_webhook(update: TelegramUpdate):
             content={"status": "error", "detail": str(e)}
         )
 
+# Manual webhook setup endpoint
+@app.get("/telegram/setup")
+async def setup_telegram():
+    """Manually trigger Telegram bot setup."""
+    try:
+        webhook_info = await telegram.get_webhook_info()
+        logger.info(f"Current webhook info: {webhook_info}")
+        
+        await telegram._setup_bot()
+        
+        new_webhook_info = await telegram.get_webhook_info()
+        logger.info(f"New webhook info: {new_webhook_info}")
+        
+        return {
+            "status": "ok",
+            "previous_webhook": webhook_info,
+            "current_webhook": new_webhook_info
+        }
+    except Exception as e:
+        logger.error(f"Error setting up Telegram webhook: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(e)}
+        )
+
+# Webhook info endpoint
+@app.get("/telegram/status")
+async def telegram_status():
+    """Get current Telegram webhook status."""
+    try:
+        webhook_info = await telegram.get_webhook_info()
+        return {
+            "status": "ok",
+            "webhook_info": webhook_info
+        }
+    except Exception as e:
+        logger.error(f"Error getting webhook info: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(e)}
+        )
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
