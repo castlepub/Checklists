@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -49,7 +50,7 @@ async def init_db():
             try:
                 # Create a new session and explicitly begin a transaction
                 logger.info("Checking if database needs seeding...")
-                result = db.execute("SELECT COUNT(*) FROM checklists")
+                result = db.execute(text("SELECT COUNT(*) FROM checklists"))
                 count = result.scalar()
                 
                 if count == 0:
