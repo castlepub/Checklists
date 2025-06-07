@@ -30,7 +30,7 @@ class ChoreCompletion(Base):
     chore_id = Column(Integer, ForeignKey("chores.id"))
     staff_name = Column(String)
     completed_at = Column(DateTime, default=datetime.utcnow)
-    comment = Column(Text, nullable=True)
+    comment = Column(String, nullable=True)
     chore = relationship("Chore", back_populates="completions")
 
 class Signature(Base):

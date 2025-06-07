@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderChores() {
         choresContainer.innerHTML = '';
         let currentSection = '';
+        let completedCount = 0;
         
         currentChores.forEach(chore => {
             // Check for section headers (denoted by # in the description)
@@ -78,8 +79,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            if (chore.completed) {
+                completedCount++;
+            }
+
             const choreDiv = document.createElement('div');
             choreDiv.className = `chore-item ${chore.completed ? 'completed' : ''}`;
+            
+            // Format completion time if exists
+            let completionInfo = '';
+            if (chore.completed && chore.completed_by && chore.completed_at) {
+                const completedDate = new Date(chore.completed_at);
+                const timeString = completedDate.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                completionInfo = `
+                    <div class="completion-info">
+                        <small class="text-success">
+                            ✓ Done by ${chore.completed_by} at ${timeString}
+                        </small>
+                    </div>
+                `;
+            }
+
             choreDiv.innerHTML = `
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="chore-${chore.id}" 
@@ -89,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <label class="form-check-label" for="chore-${chore.id}">
                         ${chore.description}
                     </label>
+                    ${completionInfo}
                     <div class="chore-comment">
                         <input type="text" class="form-control form-control-sm" 
                                placeholder="Add comment (optional)" 
@@ -123,6 +148,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             choresContainer.appendChild(choreDiv);
         });
+
+        // Update progress bar
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = (completedCount / currentChores.length) * 100;
+        progressBar.querySelector('.progress-bar').style.width = `${progressPercentage}%`;
+        progressBar.classList.remove('d-none');
 
         updateSignatureSection();
     }

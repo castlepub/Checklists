@@ -3,14 +3,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, and_, func
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import os
 import asyncio
 from contextlib import asynccontextmanager
 import logging
+import pytz
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +24,44 @@ from .telegram import telegram
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
+
+# Constants for reset times
+RESET_START_TIME = time(6, 0)  # 6:00 AM
+RESET_END_TIME = time(8, 0)    # 8:00 AM
+
+def is_within_reset_window(current_time: time) -> bool:
+    """Check if current time is within the reset window (6:00-8:00 AM)"""
+    return RESET_START_TIME <= current_time <= RESET_END_TIME
+
+def get_last_reset_time(now: datetime = None) -> datetime:
+    """Get the timestamp of the last reset"""
+    if now is None:
+        now = datetime.now(pytz.UTC)
+    
+    # If we're in the reset window, use yesterday's reset time
+    if is_within_reset_window(now.time()):
+        now = now - timedelta(days=1)
+    
+    # Set to the last reset time (6:00 AM)
+    last_reset = now.replace(hour=6, minute=0, second=0, microsecond=0)
+    return last_reset
+
+def get_last_weekly_reset_time(now: datetime = None) -> datetime:
+    """Get the timestamp of the last weekly reset (Monday 6:00 AM)"""
+    if now is None:
+        now = datetime.now(pytz.UTC)
+    
+    # Calculate days since last Monday
+    days_since_monday = now.weekday()
+    
+    # If it's Monday and we're in the reset window, use last week's reset time
+    if days_since_monday == 0 and is_within_reset_window(now.time()):
+        days_since_monday = 7
+    
+    # Get last Monday's reset time
+    last_reset = now - timedelta(days=days_since_monday)
+    last_reset = last_reset.replace(hour=6, minute=0, second=0, microsecond=0)
+    return last_reset
 
 # Global variable to track application readiness
 is_app_ready = False
@@ -167,29 +206,43 @@ async def root(request: Request):
         return JSONResponse({"status": "ok"})
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/api/checklists/{checklist_id}/chores", response_model=List[ChoreResponse])
-async def get_checklist_chores(checklist_id: str, db: Session = Depends(get_db)):
-    try:
-        logger.info(f"Fetching chores for checklist: {checklist_id}")
-        checklist = db.query(Checklist).filter(Checklist.name == checklist_id).first()
-        if not checklist:
-            logger.error(f"Checklist not found: {checklist_id}")
-            raise HTTPException(status_code=404, detail="Checklist not found")
+@app.get("/api/checklists/{checklist_name}/chores")
+async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
+    checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    # Get all chores for the checklist
+    chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
+    
+    # Get the appropriate reset time based on checklist type
+    now = datetime.now(pytz.UTC)
+    if checklist_name == "weekly":
+        reset_time = get_last_weekly_reset_time(now)
+    else:
+        reset_time = get_last_reset_time(now)
+    
+    # Get completions since last reset
+    chore_states = []
+    for chore in chores:
+        # Get the latest completion for this chore since the last reset
+        latest_completion = db.query(ChoreCompletion).filter(
+            and_(
+                ChoreCompletion.chore_id == chore.id,
+                ChoreCompletion.completed_at >= reset_time
+            )
+        ).order_by(ChoreCompletion.completed_at.desc()).first()
         
-        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
-        logger.info(f"Found {len(chores)} chores for checklist {checklist_id}")
-        return [
-            ChoreResponse(
-                id=chore.id,
-                description=chore.description,
-                order=chore.order,
-                completed=False,  # Reset completion status each time
-                comment=""
-            ) for chore in chores
-        ]
-    except Exception as e:
-        logger.error(f"Error fetching chores: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching chores: {str(e)}")
+        chore_states.append({
+            "id": chore.id,
+            "description": chore.description,
+            "completed": bool(latest_completion),
+            "completed_by": latest_completion.staff_name if latest_completion else None,
+            "completed_at": latest_completion.completed_at if latest_completion else None,
+            "comment": latest_completion.comment if latest_completion else None
+        })
+    
+    return chore_states
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):

@@ -136,4 +136,26 @@ body {
     text-decoration: line-through;
     text-decoration-color: #198754;
     text-decoration-thickness: 2px;
+}
+
+/* Completion info styling */
+.completion-info {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.completion-info small {
+    opacity: 0.9;
+}
+
+/* Progress bar styling */
+.progress {
+    height: 0.5rem;
+    border-radius: 1rem;
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+    border-radius: 1rem;
 } 
