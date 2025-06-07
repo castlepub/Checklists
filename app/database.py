@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Get database URL with a default for development
+# Get database URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
@@ -20,14 +20,7 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-try:
-    engine = create_engine(DATABASE_URL)
-    # Test the connection
-    with engine.connect() as conn:
-        conn.execute("SELECT 1")
-except Exception as e:
-    raise Exception(f"Failed to connect to database. Error: {str(e)}")
-
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

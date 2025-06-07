@@ -124,7 +124,22 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
 
 # Health check endpoint
 @app.get("/health")
-async def health_check(db: Session = Depends(get_db)):
+async def health_check():
+    try:
+        # Basic application health check
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "unhealthy", "error": str(e)}
+        )
+
+# Database health check endpoint - separate from main health check
+@app.get("/health/database")
+async def database_health_check(db: Session = Depends(get_db)):
     try:
         # Test database connection
         db.execute("SELECT 1")
@@ -136,5 +151,5 @@ async def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(
             status_code=503,
-            detail={"status": "unhealthy", "error": str(e)}
+            detail={"status": "unhealthy", "database_error": str(e)}
         ) 
