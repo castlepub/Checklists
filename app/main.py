@@ -7,8 +7,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import os
+import asyncio
+from contextlib import asynccontextmanager
 
-from .database import get_db
+from .database import get_db, engine, Base
 from .models import Checklist, Chore, ChoreCompletion, Signature
 from .telegram import telegram
 
@@ -16,7 +18,31 @@ from .telegram import telegram
 from dotenv import load_dotenv
 load_dotenv()
 
-app = FastAPI(title="Castle Checklist App")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create tables and wait for database
+    retries = 5
+    for i in range(retries):
+        try:
+            Base.metadata.create_all(bind=engine)
+            # Test the connection
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            print("Successfully connected to the database")
+            break
+        except Exception as e:
+            if i == retries - 1:  # Last retry
+                print(f"Failed to connect to database after {retries} attempts: {e}")
+                raise
+            print(f"Database connection attempt {i + 1} failed, retrying in 5 seconds...")
+            await asyncio.sleep(5)
+    
+    yield
+    
+    # Shutdown: Close any connections
+    engine.dispose()
+
+app = FastAPI(title="Castle Checklist App", lifespan=lifespan)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -125,17 +151,10 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    try:
-        # Basic application health check
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "unhealthy", "error": str(e)}
-        )
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 # Database health check endpoint - separate from main health check
 @app.get("/health/database")
