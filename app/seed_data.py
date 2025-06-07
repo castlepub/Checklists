@@ -2,20 +2,61 @@ from sqlalchemy.orm import Session
 from .models import Checklist, Chore
 
 def seed_database(db: Session):
+    # Create staff members
+    staff_names = [
+        "Nora", "Josh", "Vaile", "Melissa", "Paddy",
+        "Pero", "Guy", "Dean", "Bethany", "Henry"
+    ]
+
     # Create checklists
     checklists_data = [
         {
             "name": "opening",
             "description": "Opening Checklist",
             "chores": [
-                "Turn on all lights and music system",
-                "Check and record fridge temperatures",
+                # Till
+                "Count till to 250",
+                "Count silver tin to 250",
+                
+                # Downstairs
+                "Turn on Gas",
+                "Fill a fresh ice bag",
+                "Check bathrooms (soap, toilet paper)",
+                "Empty run off bucket from kegroom",
+                
+                # Beergarden
+                "Open all Marquee",
+                "Ashtray on every table",
+                "Wipe Tables clean",
+                "Empty Glass Bins from behind bar into cage",
+                
+                # Bar
+                "Sign into till (Admin user, code 4215)",
                 "Fill ice bucket",
-                "Clean and organize bar area",
-                "Stock glasses and supplies",
-                "Check beer lines and CO2 levels",
-                "Prepare garnishes",
-                "Count float and prepare till"
+                "Set up long drinks station",
+                "Turn on and set up dishwasher",
+                "Turn on coffee machine",
+                "Turn on pizza oven asap and extractor fan (n.1) - clean oven first",
+                "Defrost and display muffins",
+                
+                # Floor
+                "Open all doors",
+                "Put A boards and ashtray outside",
+                "Check and sweep floor",
+                "Make sure there is two menus on every table",
+                "Open Windows",
+                "Put out reservations",
+                
+                # Prep for busy shifts / during shift
+                "Bring up spare stock e.g. tonic, bestsellers",
+                "Restock snacks, Pringles, Nuts",
+                "Make Mexikaner if needed",
+                "Check kegs in kegroom",
+                "Put deliveries away",
+                "Restock food",
+                "Clean shelves, fridges glasswasher area",
+                "Cut fruit and store",
+                "Sweep Outside front, and garden"
             ]
         },
         {
