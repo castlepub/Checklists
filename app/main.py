@@ -9,6 +9,11 @@ from datetime import datetime
 import os
 import asyncio
 from contextlib import asynccontextmanager
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from .database import get_db, engine, Base, test_db_connection
 from .models import Checklist, Chore, ChoreCompletion, Signature
@@ -24,31 +29,39 @@ is_app_ready = False
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global is_app_ready
-    # Startup: Create tables and wait for database
-    retries = 5
-    for i in range(retries):
-        try:
-            # First just test the connection
-            await test_db_connection()
-            print("Database connection successful")
-            
-            # Then create tables
-            Base.metadata.create_all(bind=engine)
-            print("Database tables created successfully")
-            
-            is_app_ready = True
-            break
-        except Exception as e:
-            if i == retries - 1:  # Last retry
-                print(f"Failed to initialize database after {retries} attempts: {e}")
-                # Don't raise here, let the app start anyway
-            print(f"Database initialization attempt {i + 1} failed, retrying in 5 seconds...")
-            await asyncio.sleep(5)
+    logger.info("Application startup initiated")
+    
+    # Don't wait for database to mark app as ready
+    is_app_ready = True
+    logger.info("Application marked as ready")
+    
+    # Start database initialization in the background
+    asyncio.create_task(initialize_database())
     
     yield
     
-    # Shutdown: Close any connections
+    # Shutdown
+    logger.info("Application shutdown initiated")
     engine.dispose()
+    logger.info("Database connections disposed")
+
+async def initialize_database():
+    """Initialize database in the background"""
+    retries = 5
+    for i in range(retries):
+        try:
+            logger.info(f"Database initialization attempt {i + 1}/{retries}")
+            await test_db_connection()
+            logger.info("Database connection successful")
+            
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created successfully")
+            break
+        except Exception as e:
+            logger.error(f"Database initialization attempt {i + 1} failed: {e}")
+            if i < retries - 1:
+                logger.info("Retrying database initialization in 5 seconds...")
+                await asyncio.sleep(5)
 
 app = FastAPI(
     title="Castle Checklist App",
@@ -95,10 +108,18 @@ class ChecklistSubmission(BaseModel):
     staff_name: str
     signature_data: str
 
+# Simple health check endpoint for Railway
+@app.get("/up")
+async def railway_health_check():
+    logger.info("Health check request received at /up")
+    return {"status": "ok"}
+
+# Root endpoint with health check support
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    # First check if it's a health check request (based on user agent or headers)
+    # Always return ok for Railway health checks
     if request.headers.get("user-agent", "").lower().startswith("railway"):
+        logger.info("Railway health check request received at /")
         return JSONResponse({"status": "ok"})
     return templates.TemplateResponse("index.html", {"request": request})
 
@@ -195,11 +216,6 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
-
-# Railway health check endpoint
-@app.get("/up")
-async def railway_health_check():
-    return await health_check()
 
 # Database health check endpoint - separate from main health check
 @app.get("/health/database")
