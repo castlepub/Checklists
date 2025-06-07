@@ -13,21 +13,54 @@ class TelegramNotifier:
     def __init__(self):
         self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         self.chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        self.webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL")  # Should be your Railway app URL + /telegram/webhook
         
         if not self.bot_token:
             logger.warning("TELEGRAM_BOT_TOKEN not configured")
         if not self.chat_id:
             logger.warning("TELEGRAM_CHAT_ID not configured")
+        if not self.webhook_url:
+            logger.warning("TELEGRAM_WEBHOOK_URL not configured")
             
         if self.bot_token:
             self.api_url = f"https://api.telegram.org/bot{self.bot_token}"
             self.send_message_url = f"{self.api_url}/sendMessage"
             self.set_commands_url = f"{self.api_url}/setMyCommands"
+            self.set_webhook_url = f"{self.api_url}/setWebhook"
             logger.info("Telegram bot initialized successfully")
-            self._setup_commands()
+            self._setup_bot()
         else:
             self.api_url = None
             logger.warning("Telegram bot not initialized due to missing credentials")
+
+    async def _setup_bot(self):
+        """Set up the bot commands and webhook."""
+        await self._setup_commands()
+        await self._setup_webhook()
+
+    async def _setup_webhook(self):
+        """Set up the webhook for receiving updates."""
+        if not self.webhook_url:
+            logger.error("Cannot set up webhook - TELEGRAM_WEBHOOK_URL not configured")
+            return
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(f"Setting up webhook to {self.webhook_url}")
+                async with session.post(
+                    self.set_webhook_url,
+                    json={
+                        "url": self.webhook_url,
+                        "allowed_updates": ["message"]
+                    }
+                ) as response:
+                    result = await response.json()
+                    if response.status == 200 and result.get('ok'):
+                        logger.info("Webhook set up successfully")
+                    else:
+                        logger.error(f"Failed to set up webhook: {result}")
+            except Exception as e:
+                logger.error(f"Error setting up webhook: {str(e)}")
 
     async def _setup_commands(self):
         """Set up the bot commands in Telegram."""
@@ -81,14 +114,24 @@ class TelegramNotifier:
         try:
             message = update.get('message', {})
             if not message:
+                logger.warning("Received update with no message")
+                return
+            
+            chat_id = str(message.get('chat', {}).get('id'))
+            if chat_id != self.chat_id:
+                logger.warning(f"Received message from unauthorized chat: {chat_id}")
                 return
             
             text = message.get('text', '')
             if not text:
+                logger.warning("Received message with no text")
                 return
                 
-            if text == '/clear_all':
+            logger.info(f"Processing command: {text}")
+            if text.startswith('/clear_all'):
                 await self._handle_clear_all_command(message)
+            else:
+                logger.info(f"Ignoring unknown command: {text}")
         except Exception as e:
             logger.error(f"Error handling Telegram update: {str(e)}")
 
@@ -99,17 +142,25 @@ class TelegramNotifier:
             user = message.get('from', {})
             username = user.get('username') or user.get('first_name', 'Unknown user')
             
+            logger.info(f"Clearing all checklists as requested by {username}")
+            
             # Clear all checklist items
             db = SessionLocal()
             try:
                 # Clear all chore completions
-                db.execute(text("DELETE FROM chore_completions"))
+                result_completions = db.execute(text("DELETE FROM chore_completions"))
                 # Clear all signatures
-                db.execute(text("DELETE FROM signatures"))
+                result_signatures = db.execute(text("DELETE FROM signatures"))
                 db.commit()
                 
-                response = f"✅ All checklist items cleared by @{username}"
-                logger.info(f"Checklists cleared by {username}")
+                completions_count = result_completions.rowcount
+                signatures_count = result_signatures.rowcount
+                
+                response = (
+                    f"✅ All checklist items cleared by @{username}\n"
+                    f"Cleared {completions_count} completions and {signatures_count} signatures"
+                )
+                logger.info(f"Checklists cleared by {username}: {completions_count} completions, {signatures_count} signatures")
             except Exception as e:
                 response = f"❌ Error clearing checklists: {str(e)}"
                 logger.error(f"Error clearing checklists: {str(e)}")
