@@ -3,6 +3,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
+import asyncio
+from sqlalchemy import text
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +25,17 @@ if DATABASE_URL.startswith("postgres://"):
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+async def test_db_connection():
+    """Test database connection without creating tables."""
+    try:
+        # Use a connection from the pool
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        print(f"Database connection test failed: {e}")
+        return False
 
 # Dependency
 def get_db():

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -10,7 +10,7 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 
-from .database import get_db, engine, Base
+from .database import get_db, engine, Base, test_db_connection
 from .models import Checklist, Chore, ChoreCompletion, Signature
 from .telegram import telegram
 
@@ -18,23 +18,31 @@ from .telegram import telegram
 from dotenv import load_dotenv
 load_dotenv()
 
+# Global variable to track application readiness
+is_app_ready = False
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global is_app_ready
     # Startup: Create tables and wait for database
     retries = 5
     for i in range(retries):
         try:
+            # First just test the connection
+            await test_db_connection()
+            print("Database connection successful")
+            
+            # Then create tables
             Base.metadata.create_all(bind=engine)
-            # Test the connection
-            with engine.connect() as conn:
-                conn.execute("SELECT 1")
-            print("Successfully connected to the database")
+            print("Database tables created successfully")
+            
+            is_app_ready = True
             break
         except Exception as e:
             if i == retries - 1:  # Last retry
-                print(f"Failed to connect to database after {retries} attempts: {e}")
-                raise
-            print(f"Database connection attempt {i + 1} failed, retrying in 5 seconds...")
+                print(f"Failed to initialize database after {retries} attempts: {e}")
+                # Don't raise here, let the app start anyway
+            print(f"Database initialization attempt {i + 1} failed, retrying in 5 seconds...")
             await asyncio.sleep(5)
     
     yield
@@ -42,13 +50,26 @@ async def lifespan(app: FastAPI):
     # Shutdown: Close any connections
     engine.dispose()
 
-app = FastAPI(title="Castle Checklist App", lifespan=lifespan)
+app = FastAPI(
+    title="Castle Checklist App",
+    lifespan=lifespan,
+    docs_url=None,  # Disable docs in production
+    redoc_url=None  # Disable redoc in production
+)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Templates
 templates = Jinja2Templates(directory="templates")
+
+# Exception handler for 500 errors
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error, please try again later"}
+    )
 
 # Pydantic models
 class ChoreBase(BaseModel):
@@ -151,10 +172,29 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    # Always return healthy during startup
+    if not is_app_ready:
+        return {
+            "status": "starting",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    try:
+        # Quick connection test
+        await test_db_connection()
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        # Log the error but don't fail the health check
+        print(f"Database health check failed: {e}")
+        return {
+            "status": "degraded",
+            "database": "disconnected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 # Database health check endpoint - separate from main health check
 @app.get("/health/database")
