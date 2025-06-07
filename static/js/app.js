@@ -118,6 +118,25 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSignatureSection();
     }
 
+    async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
+        const isChecked = sectionCheckbox.checked;
+        
+        // Process each checkbox sequentially to avoid race conditions
+        for (const checkbox of choreCheckboxes) {
+            if (checkbox.checked !== isChecked) {
+                checkbox.checked = isChecked;
+                try {
+                    await handleChoreCompletion(checkbox.id.replace('chore-', ''), checkbox);
+                } catch (error) {
+                    // If any checkbox update fails, revert the section checkbox
+                    sectionCheckbox.checked = !isChecked;
+                    sectionCheckbox.indeterminate = true;
+                    return;
+                }
+            }
+        }
+    }
+
     function renderSection(sectionName, sectionChores) {
         const sectionDiv = document.createElement('div');
         sectionDiv.className = 'section';
@@ -208,15 +227,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add section checkbox event listener
         const sectionCheckbox = headerDiv.querySelector('.section-checkbox');
-        sectionCheckbox.addEventListener('change', () => {
-            const isChecked = sectionCheckbox.checked;
+        sectionCheckbox.addEventListener('change', async () => {
             const choreCheckboxes = choresDiv.querySelectorAll('.chore-checkbox');
-            choreCheckboxes.forEach(checkbox => {
-                if (checkbox.checked !== isChecked) {
-                    checkbox.checked = isChecked;
-                    checkbox.dispatchEvent(new Event('change'));
-                }
-            });
+            await handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes);
         });
 
         sectionDiv.appendChild(choresDiv);

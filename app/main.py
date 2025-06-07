@@ -314,41 +314,48 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
-    chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
-    if not chore:
-        raise HTTPException(status_code=404, detail="Chore not found")
+    try:
+        chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
+        if not chore:
+            raise HTTPException(status_code=404, detail="Chore not found")
 
-    # Get the latest completion for this chore
-    latest_completion = db.query(ChoreCompletion).filter(
-        ChoreCompletion.chore_id == request.chore_id
-    ).order_by(ChoreCompletion.completed_at.desc()).first()
+        # Get the latest completion for this chore
+        latest_completion = db.query(ChoreCompletion).filter(
+            ChoreCompletion.chore_id == request.chore_id
+        ).order_by(ChoreCompletion.completed_at.desc()).first()
 
-    if request.completed:
-        # Create a new completion regardless of previous state
-        completion = ChoreCompletion(
-            chore_id=request.chore_id,
-            staff_name=request.staff_name,
-            completed_at=datetime.utcnow()
-        )
-        db.add(completion)
-        
-        # If there was a previous completion, delete it
-        if latest_completion:
-            db.delete(latest_completion)
+        if request.completed:
+            # Try to send notification first
+            await telegram.notify_chore_completion(request.staff_name, chore.description)
             
-        db.commit()
-        
-        # Always send notification for completion
-        await telegram.notify_chore_completion(request.staff_name, chore.description)
-    else:
-        # If unchecking and there is a completion, delete it
-        if latest_completion:
-            db.delete(latest_completion)
+            # If notification succeeds, update database
+            completion = ChoreCompletion(
+                chore_id=request.chore_id,
+                staff_name=request.staff_name,
+                completed_at=datetime.utcnow()
+            )
+            db.add(completion)
+            
+            # If there was a previous completion, delete it
+            if latest_completion:
+                db.delete(latest_completion)
+                
             db.commit()
-            # Notify that the chore was marked as incomplete
-            await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
+        else:
+            # If unchecking and there is a completion
+            if latest_completion:
+                # Try to send notification first
+                await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
+                
+                # If notification succeeds, update database
+                db.delete(latest_completion)
+                db.commit()
 
-    return {"status": "success"}
+        return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in complete_chore: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_comment")
 async def add_chore_comment(request: ChoreCommentRequest, db: Session = Depends(get_db)):
