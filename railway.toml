@@ -3,9 +3,12 @@ builder = "NIXPACKS"
 buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port=${PORT} --timeout-keep-alive 75"
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on_failure"
 healthcheckPath = "/up"
-healthcheckTimeout = 300
+healthcheckTimeout = 100
 healthcheckInterval = 45
-numReplicas = 1 
+numReplicas = 1
+
+[variables]
+DATABASE_URL = "${{ Postgres.DATABASE_URL }}" 
