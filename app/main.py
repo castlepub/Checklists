@@ -318,17 +318,35 @@ async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(
     if not chore:
         raise HTTPException(status_code=404, detail="Chore not found")
 
+    # Get the latest completion for this chore
+    latest_completion = db.query(ChoreCompletion).filter(
+        ChoreCompletion.chore_id == request.chore_id
+    ).order_by(ChoreCompletion.completed_at.desc()).first()
+
     if request.completed:
+        # Create a new completion regardless of previous state
         completion = ChoreCompletion(
             chore_id=request.chore_id,
             staff_name=request.staff_name,
             completed_at=datetime.utcnow()
         )
         db.add(completion)
+        
+        # If there was a previous completion, delete it
+        if latest_completion:
+            db.delete(latest_completion)
+            
         db.commit()
-
-        # Send Telegram notification
+        
+        # Always send notification for completion
         await telegram.notify_chore_completion(request.staff_name, chore.description)
+    else:
+        # If unchecking and there is a completion, delete it
+        if latest_completion:
+            db.delete(latest_completion)
+            db.commit()
+            # Notify that the chore was marked as incomplete
+            await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
 
     return {"status": "success"}
 
@@ -350,6 +368,21 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
     if not checklist:
         raise HTTPException(status_code=404, detail="Checklist not found")
 
+    # Get all chores and their completion status
+    now = datetime.now(pytz.UTC)
+    if request.checklist_id == "weekly":
+        reset_time = get_last_weekly_reset_time(now)
+    else:
+        reset_time = get_last_reset_time(now)
+    
+    # Get all completed chores since last reset
+    completed_chores = db.query(ChoreCompletion).join(Chore).filter(
+        and_(
+            Chore.checklist_id == checklist.id,
+            ChoreCompletion.completed_at >= reset_time
+        )
+    ).order_by(ChoreCompletion.completed_at).all()
+
     # Save signature
     signature = Signature(
         checklist_id=checklist.id,
@@ -360,7 +393,15 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
     db.add(signature)
     db.commit()
 
-    # Send Telegram notification
+    # Send Telegram notifications
+    # First send individual completion summary
+    completion_summary = f"🏁 {request.staff_name} completed {len(completed_chores)} tasks in {checklist.name.upper()}:\n"
+    for completion in completed_chores:
+        time_str = completion.completed_at.strftime("%H:%M")
+        completion_summary += f"\n✓ {completion.chore.description} ({time_str})"
+    await telegram.send_message(completion_summary)
+
+    # Then send final completion notification
     await telegram.notify_checklist_completion(request.staff_name, checklist.name.upper())
 
     return {"status": "success"}
@@ -378,6 +419,36 @@ async def telegram_webhook(update: TelegramUpdate):
         return JSONResponse(
             status_code=500,
             content={"status": "error", "detail": str(e)}
+        )
+
+# Test Telegram endpoint
+@app.get("/telegram/test")
+async def test_telegram():
+    """Test Telegram notifications."""
+    try:
+        # Log environment variables (excluding sensitive data)
+        env_vars = {k: '***' if 'TOKEN' in k else v for k, v in os.environ.items()}
+        logger.info(f"Current environment variables: {env_vars}")
+        
+        # Try to send a test message
+        await telegram.send_message("🔔 Test notification from Castle Pub Checklist")
+        
+        return {
+            "status": "ok",
+            "message": "Test notification sent",
+            "bot_token_present": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+            "chat_id_present": bool(os.getenv("TELEGRAM_CHAT_ID"))
+        }
+    except Exception as e:
+        logger.error(f"Error testing Telegram: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "detail": str(e),
+                "bot_token_present": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+                "chat_id_present": bool(os.getenv("TELEGRAM_CHAT_ID"))
+            }
         )
 
 # Manual webhook setup endpoint

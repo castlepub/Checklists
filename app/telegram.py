@@ -2,10 +2,10 @@ import os
 import aiohttp
 from datetime import datetime
 import logging
+import asyncio
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .database import SessionLocal
-import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,8 +17,9 @@ class TelegramNotifier:
         env_vars = {k: '***' if 'TOKEN' in k else v for k, v in os.environ.items()}
         logger.info(f"Environment variables: {env_vars}")
         
-        self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        self.chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        # Get credentials
+        self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        self.chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
         
         logger.info("Initializing Telegram notifier...")
         logger.info(f"Bot token present: {bool(self.bot_token)}")
@@ -61,17 +62,28 @@ class TelegramNotifier:
         async with aiohttp.ClientSession() as session:
             try:
                 logger.info(f"Sending Telegram message to chat {self.chat_id}: {text}")
+                
+                # Ensure chat_id is a string and properly formatted
+                chat_id = str(self.chat_id).strip()
+                if not chat_id.startswith('-'):
+                    chat_id = f"-{chat_id}"
+                
                 async with session.post(
                     self.send_message_url,
                     json={
-                        "chat_id": self.chat_id,
+                        "chat_id": chat_id,
                         "text": text,
                         "parse_mode": "HTML"
                     }
                 ) as response:
-                    result = await response.json()
                     response_text = await response.text()
                     logger.info(f"Telegram API response: {response_text}")
+                    
+                    try:
+                        result = await response.json()
+                    except Exception as e:
+                        logger.error(f"Error parsing response JSON: {str(e)}")
+                        result = {}
                     
                     if response.status == 200 and result.get('ok'):
                         logger.info("Telegram message sent successfully")
@@ -87,8 +99,14 @@ class TelegramNotifier:
 
     async def notify_chore_completion(self, staff_name: str, chore_description: str):
         time = datetime.now().strftime("%H:%M")
-        message = f"{staff_name} marked '{chore_description}' as done at {time}"
+        message = f"✅ {staff_name} marked '{chore_description}' as done at {time}"
         logger.info(f"Notifying chore completion: {message}")
+        await self.send_message(message)
+
+    async def notify_chore_uncomplete(self, staff_name: str, chore_description: str):
+        time = datetime.now().strftime("%H:%M")
+        message = f"❌ {staff_name} marked '{chore_description}' as NOT done at {time}"
+        logger.info(f"Notifying chore uncomplete: {message}")
         await self.send_message(message)
 
     async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
