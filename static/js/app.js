@@ -248,16 +248,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add progress display
         const progressDiv = document.createElement('div');
         progressDiv.id = 'progressDisplay';
-        progressDiv.className = 'progress-display';
         choresContainer.appendChild(progressDiv);
         
         // Group chores by section
         const sections = {};
         currentChores.forEach(chore => {
-            const sectionMatch = chore.description.match(/^([^:]+):/);
-            const sectionName = sectionMatch ? sectionMatch[1] : 'General Tasks';
-            if (!sections[sectionName]) sections[sectionName] = [];
-            sections[sectionName].push(chore);
+            if (!sections[chore.section]) {
+                sections[chore.section] = [];
+            }
+            sections[chore.section].push(chore);
         });
         
         // Render each section
@@ -646,6 +645,32 @@ document.addEventListener('DOMContentLoaded', function() {
             completedChores.add(completedCount);
             const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
             showAchievement("💡", "Fun Fact!", randomFact, "fun-fact");
+        }
+    }
+
+    async function toggleChore(choreId, checkbox) {
+        try {
+            const response = await fetch(`/api/chores/${choreId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    completed: checkbox.checked,
+                    staff_name: staffSelect.value
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update chore');
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error toggling chore:', error);
+            checkbox.checked = !checkbox.checked; // Revert the checkbox
+            throw error;
         }
     }
 

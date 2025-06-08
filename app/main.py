@@ -246,10 +246,15 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
     response = []
     for chore in chores:
         completion = completion_map.get(chore.id)
+        # Extract section from description (format: "Section: Task")
+        section = "General Tasks"
+        if ":" in chore.description:
+            section = chore.description.split(":", 1)[0].strip()
         response.append({
             "id": chore.id,
             "description": chore.description,
             "order": chore.order,
+            "section": section,
             "completed": bool(completion),
             "completed_by": completion.completed_by if completion else None,
             "completed_at": completion.completed_at.isoformat() if completion else None,
