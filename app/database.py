@@ -54,39 +54,24 @@ Base = declarative_base()
 logger.info("Base class for models created")
 
 async def test_db_connection():
-    """Test database connection with detailed logging."""
-    logger.info("Testing database connection...")
+    """Test database connection with timeout."""
     try:
         # Create a new session
         db = SessionLocal()
         try:
-            # Execute a simple query
-            logger.info("Executing test query...")
-            result = db.execute(text("SELECT 1"))
-            logger.info("Test query executed successfully")
-            
-            # Check if we can access the database
-            logger.info("Checking database access...")
-            result = db.execute(text("SELECT current_database()"))
-            db_name = result.scalar()
-            logger.info(f"Connected to database: {db_name}")
-            
-            # Check PostgreSQL version
-            logger.info("Checking PostgreSQL version...")
-            result = db.execute(text("SELECT version()"))
-            version = result.scalar()
-            logger.info(f"PostgreSQL version: {version}")
-            
+            # Set a timeout for the query
+            db.execute(text("SET statement_timeout = '5s'"))
+            # Simple query to test connection
+            db.execute(text("SELECT 1"))
             return True
         except Exception as e:
-            logger.error(f"Database test query failed: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Database connection test failed: {str(e)}")
+            return False
         finally:
             db.close()
-            logger.info("Database session closed")
     except Exception as e:
-        logger.error(f"Database connection test failed: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Error creating database session: {str(e)}")
+        return False
 
 def get_db():
     """Get database session with logging."""

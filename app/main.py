@@ -55,21 +55,13 @@ async def lifespan(app: FastAPI):
     # Application startup
     logger.info("Application startup initiated")
     
+    # Create tables if they don't exist
     try:
-        # Simple database connection test
-        logger.info("Testing database connection...")
-        await test_db_connection()
-        logger.info("Database connection successful")
-        
-        # Create tables if they don't exist
         logger.info("Creating database tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
-        
-        # Start background task for seeding
-        asyncio.create_task(seed_database_if_empty())
     except Exception as e:
-        logger.error(f"Error during startup: {str(e)}", exc_info=True)
+        logger.error(f"Error creating tables: {str(e)}", exc_info=True)
         # Don't raise the error - let the app start anyway
     
     yield
@@ -112,20 +104,42 @@ app = FastAPI(
 async def health_check():
     """Main health check endpoint."""
     try:
-        # Test database connection
+        # Test database connection with timeout
+        db_connected = await test_db_connection()
+        
+        if not db_connected:
+            return {
+                "status": "unhealthy",
+                "database": {
+                    "connection": "error",
+                    "tables": "unknown"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        # If connection is successful, check tables
         db = SessionLocal()
         try:
-            db.execute(text("SELECT 1"))
-            db_status = "connected"
+            # Test if tables exist
+            try:
+                result = db.execute(text("SELECT COUNT(*) FROM checklists"))
+                count = result.scalar()
+                tables_status = "ok"
+            except Exception as table_error:
+                logger.error(f"Table check failed: {str(table_error)}")
+                tables_status = "error"
         except Exception as e:
-            logger.error(f"Database connection test failed: {str(e)}")
-            db_status = "error"
+            logger.error(f"Database session error: {str(e)}")
+            tables_status = "error"
         finally:
             db.close()
         
         return {
             "status": "healthy",
-            "database": db_status,
+            "database": {
+                "connection": "connected",
+                "tables": tables_status
+            },
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
