@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     # Create tables if they don't exist
     try:
         logger.info("Creating database tables...")
-        Base.metadata.create_all(bind=engine)
+        init_db()
         logger.info("Database tables created successfully")
         
         # Seed database if empty
@@ -631,4 +631,44 @@ async def debug_db_state(db: Session = Depends(get_db)):
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e)}
-        ) 
+        )
+
+def init_db():
+    """Initialize the database."""
+    try:
+        # Create tables
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        
+        # Add completed column to chore_completions if it doesn't exist
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE chore_completions ADD COLUMN IF NOT EXISTS completed BOOLEAN DEFAULT TRUE"))
+                conn.commit()
+                logger.info("Added completed column to chore_completions table")
+            except Exception as e:
+                logger.warning(f"Could not add completed column: {str(e)}")
+        
+        # Check if database needs seeding
+        logger.info("Checking if database needs seeding...")
+        with SessionLocal() as db:
+            try:
+                # Check if checklists table exists and has data
+                logger.info("Checking if checklists table exists...")
+                checklists = db.query(Checklist).all()
+                if checklists:
+                    logger.info(f"Found {len(checklists)} checklists in database")
+                    logger.info("Database already contains checklists, skipping seeding")
+                else:
+                    logger.info("No checklists found, seeding database...")
+                    seed_database(db)
+                    db.commit()
+                    logger.info("Database seeded successfully")
+            except Exception as e:
+                logger.error(f"Error during database initialization: {str(e)}")
+                raise
+            finally:
+                logger.info("Database session closed after seeding")
+    except Exception as e:
+        logger.error(f"Error initializing database: {str(e)}")
+        raise 
