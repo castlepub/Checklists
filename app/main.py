@@ -222,46 +222,53 @@ class TelegramUpdate(BaseModel):
 
 @app.get("/api/checklists/{checklist_name}/chores")
 async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
-    # Get the checklist
-    checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
-    if not checklist:
-        raise HTTPException(status_code=404, detail="Checklist not found")
-    
-    # Get all chores for this checklist
-    chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
-    
-    # Get the last reset time
-    last_reset = get_last_reset_time()
-    
-    # Get all completions since last reset
-    completions = db.query(ChoreCompletion).filter(
-        ChoreCompletion.chore_id.in_([chore.id for chore in chores]),
-        ChoreCompletion.completed_at >= last_reset
-    ).all()
-    
-    # Create a map of chore_id to completion
-    completion_map = {c.chore_id: c for c in completions}
-    
-    # Format the response
-    response = []
-    for chore in chores:
-        completion = completion_map.get(chore.id)
-        # Extract section from description (format: "Section: Task")
-        section = "General Tasks"
-        if ":" in chore.description:
-            section = chore.description.split(":", 1)[0].strip()
-        response.append({
-            "id": chore.id,
-            "description": chore.description,
-            "order": chore.order,
-            "section": section,
-            "completed": bool(completion),
-            "completed_by": completion.completed_by if completion else None,
-            "completed_at": completion.completed_at.isoformat() if completion else None,
-            "comment": completion.comment if completion else None
-        })
-    
-    return response
+    try:
+        # Get the checklist
+        checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        # Get all sections for this checklist
+        sections = db.query(Section).filter(Section.checklist_id == checklist.id).order_by(Section.order).all()
+        
+        # Get all chores for this checklist
+        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
+        
+        # Get the last reset time
+        last_reset = get_last_reset_time()
+        
+        # Get all completions since last reset
+        completions = db.query(ChoreCompletion).filter(
+            ChoreCompletion.chore_id.in_([chore.id for chore in chores]),
+            ChoreCompletion.completed_at >= last_reset
+        ).all()
+        
+        # Create a map of chore_id to completion
+        completion_map = {c.chore_id: c for c in completions}
+        
+        # Format the response
+        response = []
+        for chore in chores:
+            completion = completion_map.get(chore.id)
+            # Find the section for this chore
+            section = next((s for s in sections if s.name in chore.description), None)
+            section_name = section.name if section else "General Tasks"
+            
+            response.append({
+                "id": chore.id,
+                "description": chore.description,
+                "order": chore.order,
+                "section": section_name,
+                "completed": bool(completion),
+                "completed_by": completion.completed_by if completion else None,
+                "completed_at": completion.completed_at.isoformat() if completion else None,
+                "comment": completion.comment if completion else None
+            })
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error getting checklist chores: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
