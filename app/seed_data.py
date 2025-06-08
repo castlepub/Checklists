@@ -163,6 +163,7 @@ def seed_database(db: Session):
                 "Clean inside the microwave with sanitizer",
                 "Spray down prep area with sanitizer and wipe using cloth",
                 "Place pizza cutters and utensils back",
+                "Store and label leftover ingredients",
                 
                 # Fridge
                 "Bring up and bag dough (at least 50)",

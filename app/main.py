@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, func
@@ -539,4 +539,31 @@ async def database_health_check(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=503,
             detail={"status": "unhealthy", "database_error": str(e)}
-        ) 
+        )
+
+# Add this new endpoint
+@app.post("/api/reset_checklist/{checklist_name}")
+async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
+    try:
+        # Get the checklist
+        checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        # Delete all completions for this checklist's chores
+        chore_ids = [chore.id for chore in checklist.chores]
+        db.query(ChoreCompletion).filter(ChoreCompletion.chore_id.in_(chore_ids)).delete(synchronize_session=False)
+        
+        # Delete any signatures for this checklist
+        db.query(Signature).filter(Signature.checklist_id == checklist.id).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        # Send notification about the reset
+        await telegram.send_message(f"⚠️ {checklist_name.upper()} checklist has been manually reset")
+        
+        return {"status": "success", "message": f"Checklist {checklist_name} has been reset"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error resetting checklist: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 

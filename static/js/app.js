@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     const clearSignatureBtn = document.getElementById('clearSignature');
     const submitChecklistBtn = document.getElementById('submitChecklist');
+    const resetChecklistBtn = document.getElementById('resetChecklist');
 
     let currentChores = [];
     let choreUpdateQueue = [];
@@ -120,6 +121,33 @@ document.addEventListener('DOMContentLoaded', function() {
     staffSelect.addEventListener('change', updateUI);
     clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
     submitChecklistBtn.addEventListener('click', submitChecklist);
+    resetChecklistBtn.addEventListener('click', async () => {
+        const checklistName = checklistSelect.value;
+        if (!checklistName) return;
+        
+        if (!confirm(`Are you sure you want to reset the ${checklistName} checklist? This will remove all completed tasks and signatures.`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/reset_checklist/${checklistName}`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) throw new Error('Failed to reset checklist');
+            
+            // Reload the page to show fresh checklist
+            location.reload();
+        } catch (error) {
+            console.error('Error resetting checklist:', error);
+            alert('Failed to reset checklist. Please try again.');
+        }
+    });
+
+    // Show/hide reset button based on checklist selection
+    checklistSelect.addEventListener('change', () => {
+        resetChecklistBtn.style.display = checklistSelect.value ? 'block' : 'none';
+    });
 
     // Handle orientation change for signature pad
     window.addEventListener('resize', resizeSignaturePad);
