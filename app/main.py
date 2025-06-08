@@ -27,9 +27,20 @@ file_handler = logging.FileHandler('app.log')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
 
+# Add stream handler for Railway console output
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(stream_handler)
+
 # Log all environment variables (except sensitive ones)
 env_vars = {k: '***' if 'TOKEN' in k or 'PASSWORD' in k else v for k, v in os.environ.items()}
 logger.info(f"Environment variables: {env_vars}")
+
+# Verify required environment variables
+required_env_vars = ['DATABASE_URL', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    logger.warning(f"Missing required environment variables: {missing_vars}")
 
 from .database import get_db, engine, Base, test_db_connection, SessionLocal
 from .models import Checklist, Chore, ChoreCompletion, Signature, Section, Staff
@@ -100,65 +111,66 @@ app = FastAPI(
 )
 
 # Health check endpoints
+@app.get("/up")
+async def up_check():
+    """Simple health check endpoint that returns immediately."""
+    return {"status": "ok"}
+
 @app.get("/health")
 async def health_check():
-    """Main health check endpoint."""
+    """Comprehensive health check that tests database connection."""
     try:
         # Test database connection with timeout
-        db_connected = await test_db_connection()
-        
-        if not db_connected:
-            return {
-                "status": "unhealthy",
-                "database": {
-                    "connection": "error",
-                    "tables": "unknown"
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        
-        # If connection is successful, check tables
         db = SessionLocal()
-        try:
-            # Test if tables exist
-            try:
-                result = db.execute(text("SELECT COUNT(*) FROM checklists"))
-                count = result.scalar()
-                tables_status = "ok"
-            except Exception as table_error:
-                logger.error(f"Table check failed: {str(table_error)}")
-                tables_status = "error"
-        except Exception as e:
-            logger.error(f"Database session error: {str(e)}")
-            tables_status = "error"
-        finally:
-            db.close()
+        is_connected = test_db_connection(db)
+        db.close()
         
+        if not is_connected:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unhealthy",
+                    "database": "disconnected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "error": "Database connection failed"
+                }
+            )
+        
+        # If we get here, database is connected
         return {
             "status": "healthy",
-            "database": {
-                "connection": "connected",
-                "tables": tables_status
-            },
+            "database": "connected",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
 
-@app.get("/up")
-async def up_check():
-    """Simple up check for Railway."""
-    return {"status": "ok"}
+@app.on_event("startup")
+async def startup_event():
+    """Log application startup."""
+    logger.info("Application startup initiated")
 
-@app.get("/")
-async def root():
-    """Root endpoint."""
-    return {"status": "ok", "message": "Castle Checklist API is running"}
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Log application shutdown."""
+    logger.info("Application shutdown initiated")
+
+# Initialize database tables
+Base.metadata.create_all(bind=engine)
+
+# Start database seeding in background
+@app.on_event("startup")
+async def seed_database():
+    """Start database seeding as a background task."""
+    asyncio.create_task(seed_database_if_empty())
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

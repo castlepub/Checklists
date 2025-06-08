@@ -53,24 +53,23 @@ logger.info("Session factory created")
 Base = declarative_base()
 logger.info("Base class for models created")
 
-async def test_db_connection():
-    """Test database connection with timeout."""
+async def test_db_connection(db: Session) -> bool:
+    """Test database connection with a short timeout.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        bool: True if connection is successful, False otherwise
+    """
     try:
-        # Create a new session
-        db = SessionLocal()
-        try:
-            # Set a timeout for the query
-            db.execute(text("SET statement_timeout = '5s'"))
-            # Simple query to test connection
-            db.execute(text("SELECT 1"))
-            return True
-        except Exception as e:
-            logger.error(f"Database connection test failed: {str(e)}")
-            return False
-        finally:
-            db.close()
+        # Set a short timeout for the query
+        db.execute(text("SET statement_timeout = '2s'"))
+        # Simple connection test
+        db.execute(text("SELECT 1"))
+        return True
     except Exception as e:
-        logger.error(f"Error creating database session: {str(e)}")
+        logger.error(f"Database connection test failed: {str(e)}")
         return False
 
 def get_db():
