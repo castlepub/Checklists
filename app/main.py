@@ -110,6 +110,24 @@ app = FastAPI(
     redoc_url=None  # Disable redoc in production
 )
 
+@app.get("/")
+async def root():
+    """Root endpoint that returns basic API information."""
+    return {
+        "status": "ok",
+        "message": "Castle Checklist API is running",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "up": "/up",
+            "checklists": "/api/checklists",
+            "chores": "/api/chores",
+            "sections": "/api/sections",
+            "staff": "/api/staff",
+            "telegram": "/api/telegram"
+        }
+    }
+
 # Health check endpoints
 @app.get("/up")
 async def up_check():
