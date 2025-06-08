@@ -76,6 +76,8 @@ async def lifespan(app: FastAPI):
         logger.info("Checking if database needs seeding...")
         db = SessionLocal()
         try:
+            # Check if tables exist by querying the checklists table
+            logger.info("Checking if checklists table exists...")
             result = db.execute(text("SELECT COUNT(*) FROM checklists"))
             count = result.scalar()
             logger.info(f"Found {count} checklists in database")
@@ -570,4 +572,40 @@ async def complete_section(section_id: int, data: dict, db: Session = Depends(ge
     send_telegram_message(message)
 
     db.commit()
-    return {"completed": True, "chores_completed": len(uncompleted_chores)} 
+    return {"completed": True, "chores_completed": len(uncompleted_chores)}
+
+@app.get("/debug/db-state")
+async def debug_db_state(db: Session = Depends(get_db)):
+    """Debug endpoint to check database state."""
+    try:
+        # Check checklists
+        checklists = db.query(Checklist).all()
+        checklist_data = []
+        for checklist in checklists:
+            sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
+            section_data = []
+            for section in sections:
+                chores = db.query(Chore).filter(Chore.section_id == section.id).all()
+                section_data.append({
+                    "id": section.id,
+                    "name": section.name,
+                    "order": section.order,
+                    "chores": [{"id": c.id, "description": c.description, "order": c.order} for c in chores]
+                })
+            checklist_data.append({
+                "id": checklist.id,
+                "name": checklist.name,
+                "description": checklist.description,
+                "sections": section_data
+            })
+        
+        return {
+            "status": "ok",
+            "checklists": checklist_data
+        }
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        ) 
