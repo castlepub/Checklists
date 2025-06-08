@@ -85,11 +85,14 @@ async def lifespan(app: FastAPI):
 async def seed_database_if_empty():
     """Seed the database if it's empty."""
     try:
+        logger.info("Starting database seeding check...")
         db = SessionLocal()
         try:
             # Check if tables exist by querying the checklists table
+            logger.info("Checking if checklists table exists...")
             result = db.execute(text("SELECT COUNT(*) FROM checklists"))
             count = result.scalar()
+            logger.info(f"Found {count} checklists in database")
             
             if count == 0:
                 logger.info("Database is empty, seeding initial data...")
@@ -98,10 +101,15 @@ async def seed_database_if_empty():
                 logger.info("Database seeded successfully")
             else:
                 logger.info(f"Database already contains {count} checklists, skipping seeding")
+        except Exception as e:
+            logger.error(f"Error during database seeding check: {str(e)}", exc_info=True)
+            raise
         finally:
             db.close()
+            logger.info("Database session closed after seeding check")
     except Exception as e:
-        logger.error(f"Error seeding database: {str(e)}", exc_info=True)
+        logger.error(f"Error in seed_database_if_empty: {str(e)}", exc_info=True)
+        raise
 
 app = FastAPI(
     title="Castle Checklist App",
@@ -223,25 +231,33 @@ class TelegramUpdate(BaseModel):
 @app.get("/api/checklists/{checklist_name}/chores")
 async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
     try:
+        logger.info(f"Getting chores for checklist: {checklist_name}")
+        
         # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
         if not checklist:
+            logger.error(f"Checklist not found: {checklist_name}")
             raise HTTPException(status_code=404, detail="Checklist not found")
+        logger.info(f"Found checklist: {checklist.id}")
         
         # Get all sections for this checklist
         sections = db.query(Section).filter(Section.checklist_id == checklist.id).order_by(Section.order).all()
+        logger.info(f"Found {len(sections)} sections")
         
         # Get all chores for this checklist
         chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
+        logger.info(f"Found {len(chores)} chores")
         
         # Get the last reset time
         last_reset = get_last_reset_time()
+        logger.info(f"Last reset time: {last_reset}")
         
         # Get all completions since last reset
         completions = db.query(ChoreCompletion).filter(
             ChoreCompletion.chore_id.in_([chore.id for chore in chores]),
             ChoreCompletion.completed_at >= last_reset
         ).all()
+        logger.info(f"Found {len(completions)} completions since last reset")
         
         # Create a map of chore_id to completion
         completion_map = {c.chore_id: c for c in completions}
@@ -265,6 +281,7 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
                 "comment": completion.comment if completion else None
             })
         
+        logger.info(f"Returning {len(response)} chores")
         return response
     except Exception as e:
         logger.error(f"Error getting checklist chores: {str(e)}", exc_info=True)
