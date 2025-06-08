@@ -17,6 +17,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentChores = [];
     let choreUpdateQueue = [];
     let isProcessingQueue = false;
+    let selectedStaff = null;
+    let completedChores = new Set();
+    let completedSections = new Set();
+    let totalChores = document.querySelectorAll('.chore-checkbox').length;
+    let completedCount = 0;
 
     // Add achievements container to the body
     const achievementsContainer = document.createElement('div');
@@ -32,16 +37,16 @@ document.addEventListener('DOMContentLoaded', function() {
     ];
 
     const funFacts = [
-        "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251! 🍺",
-        "The term 'pub' comes from 'public house' - they were originally private houses that served alcohol! 🏠",
-        "The first pubs were Roman taverns, built along Roman roads in Britain! 🛣️",
-        "The tradition of clinking glasses comes from medieval times when people would splash drinks into each other's cups to prove they weren't poisoned! 🥂",
-        "The world's longest pub crawl would take 27 years to visit every pub in the UK! 🚶‍♂️",
-        "The oldest known recipe for beer is over 4,000 years old! 🍻",
-        "In medieval England, pub visitors used to drink from leather tankards! 🥤",
-        "The first beer was made by accident when grain got wet, fermented, and created a primitive beer! 🌾",
-        "Some medieval pubs had beds upstairs, making them the first hotels! 🛏️",
-        "The tradition of 'last orders' began during WW1 to help factory workers stay productive! ⏰"
+        "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251!",
+        "The world's strongest beer is 'Snake Venom' at 67.5% alcohol by volume!",
+        "The first beer was brewed in Mesopotamia around 4000 BC!",
+        "The most expensive beer ever sold was a bottle of 'Allsopp's Arctic Ale' for $503,300!",
+        "The longest bar in the world is in New Orleans, measuring 130.6 meters!",
+        "The first Oktoberfest was actually a wedding celebration for Crown Prince Ludwig in 1810!",
+        "The term 'pub' comes from 'public house'!",
+        "The world's largest beer festival is Oktoberfest in Munich!",
+        "The first beer cans were introduced in 1935!",
+        "The world's most popular beer style is lager!"
     ];
 
     let lastFunFactIndex = -1;
@@ -604,4 +609,51 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Failed to submit checklist. Please try again.');
         }
     }
+
+    function selectStaff(staffName) {
+        selectedStaff = staffName;
+        document.querySelectorAll('.list-group-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        document.getElementById(`staff-${staffName}`).classList.add('active');
+    }
+
+    function updateProgress() {
+        const progress = (completedCount / totalChores) * 100;
+        document.querySelector('.progress-fill').style.width = `${progress}%`;
+        document.querySelector('.progress-text').textContent = `${Math.round(progress)}%`;
+
+        // Update emoji based on progress
+        const currentEncouragement = encouragements.reduce((prev, curr) => {
+            return (progress >= curr.threshold * 100) ? curr : prev;
+        });
+
+        const emojiElement = document.querySelector('.progress-emoji');
+        if (emojiElement.textContent !== currentEncouragement.emoji) {
+            emojiElement.textContent = currentEncouragement.emoji;
+            emojiElement.classList.add('bounce');
+            setTimeout(() => emojiElement.classList.remove('bounce'), 1000);
+        }
+
+        // Show milestone achievements
+        if (progress % 25 === 0 && progress > 0 && !completedSections.has(progress)) {
+            completedSections.add(progress);
+            showAchievement(currentEncouragement.emoji, "Milestone Reached!", currentEncouragement.message, "milestone");
+        }
+
+        // Show fun facts every 5 completed tasks
+        if (completedCount % 5 === 0 && completedCount > 0 && !completedChores.has(completedCount)) {
+            completedChores.add(completedCount);
+            const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
+            showAchievement("💡", "Fun Fact!", randomFact, "fun-fact");
+        }
+    }
+
+    // Make functions available globally
+    window.selectStaff = selectStaff;
+    window.toggleChore = toggleChore;
+    window.completeSection = completeSection;
+
+    // Initialize progress
+    updateProgress();
 }); 

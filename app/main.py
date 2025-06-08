@@ -12,14 +12,16 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import pytz
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from .database import get_db, engine, Base, test_db_connection, SessionLocal
-from .models import Checklist, Chore, ChoreCompletion, Signature
+from .models import Checklist, Chore, ChoreCompletion, Signature, Section, Staff
 from .telegram import telegram, cet_tz
+from .seed_data import seed_database
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -34,6 +36,10 @@ is_db_ready = False
 db_init_error = None
 startup_time = datetime.now()
 STARTUP_GRACE_PERIOD = 60  # seconds
+
+# Telegram configuration
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def is_within_startup_grace_period() -> bool:
     """Check if we're still within the startup grace period"""
@@ -101,7 +107,6 @@ async def init_db():
                     count = result.scalar()
                     if count == 0:
                         logger.info("Database is empty, seeding initial data...")
-                        from .seed_data import seed_database
                         seed_database(db)
                         db.commit()
                         logger.info("Database seeded successfully")
@@ -111,7 +116,6 @@ async def init_db():
                     if "relation" in str(table_error) and "does not exist" in str(table_error):
                         logger.info("Tables don't exist, creating and seeding database...")
                         Base.metadata.create_all(bind=engine)
-                        from .seed_data import seed_database
                         seed_database(db)
                         db.commit()
                         logger.info("Database created and seeded successfully")
@@ -553,7 +557,6 @@ async def reset_database(db: Session = Depends(get_db)):
         db.commit()
         
         # Now seed the database with fresh data
-        from .seed_data import seed_database
         seed_database(db)
         db.commit()
         
@@ -597,4 +600,68 @@ async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         logger.error(f"Error resetting checklist: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+def send_telegram_message(message: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("Telegram configuration missing")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    }
+    try:
+        response = requests.post(url, data=data)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"Failed to send Telegram message: {e}")
+
+@app.post("/api/chores/{chore_id}/toggle")
+async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db)):
+    chore = db.query(Chore).filter(Chore.id == chore_id).first()
+    if not chore:
+        raise HTTPException(status_code=404, detail="Chore not found")
+
+    # Toggle completion status
+    chore.completed = not chore.completed
+    chore.completed_by = data.get("staff_name") if chore.completed else None
+    chore.completed_at = datetime.utcnow() if chore.completed else None
+
+    # Send Telegram notification
+    if chore.completed:
+        message = f"✅ <b>{data.get('staff_name')}</b> completed: {chore.description}"
+        send_telegram_message(message)
+
+    db.commit()
+    return {"completed": chore.completed}
+
+@app.post("/api/sections/{section_id}/complete")
+async def complete_section(section_id: int, data: dict, db: Session = Depends(get_db)):
+    section = db.query(Section).filter(Section.id == section_id).first()
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    # Get all uncompleted chores in the section
+    uncompleted_chores = db.query(Chore).filter(
+        Chore.section_id == section_id,
+        Chore.completed == False
+    ).all()
+
+    # Mark all chores as completed
+    staff_name = data.get("staff_name")
+    completed_at = datetime.utcnow()
+    
+    for chore in uncompleted_chores:
+        chore.completed = True
+        chore.completed_by = staff_name
+        chore.completed_at = completed_at
+
+    # Send Telegram notification for the section
+    message = f"✅ <b>{staff_name}</b> completed the {section.name} section!"
+    send_telegram_message(message)
+
+    db.commit()
+    return {"completed": True, "chores_completed": len(uncompleted_chores)} 
