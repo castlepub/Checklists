@@ -13,10 +13,23 @@ from contextlib import asynccontextmanager
 import logging
 import pytz
 import requests
+from sqlalchemy import inspect
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Add file handler for persistent logs
+file_handler = logging.FileHandler('app.log')
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
+# Log all environment variables (except sensitive ones)
+env_vars = {k: '***' if 'TOKEN' in k or 'PASSWORD' in k else v for k, v in os.environ.items()}
+logger.info(f"Environment variables: {env_vars}")
 
 from .database import get_db, engine, Base, test_db_connection, SessionLocal
 from .models import Checklist, Chore, ChoreCompletion, Signature, Section, Staff
@@ -80,10 +93,13 @@ def get_last_weekly_reset_time(now: datetime = None) -> datetime:
     return last_reset
 
 async def init_db():
+    """Initialize database with detailed logging."""
     global is_db_ready, db_init_error
-    logger.info("Database initialization attempt started")
+    logger.info("Database initialization started")
+    
     max_attempts = 5
     attempt = 1
+    
     while attempt <= max_attempts:
         try:
             logger.info(f"Database initialization attempt {attempt}/{max_attempts}")
@@ -103,8 +119,11 @@ async def init_db():
             try:
                 # Check if tables exist by querying the checklists table
                 try:
+                    logger.info("Checking for existing data...")
                     result = db.execute(text("SELECT COUNT(*) FROM checklists"))
                     count = result.scalar()
+                    logger.info(f"Found {count} checklists in database")
+                    
                     if count == 0:
                         logger.info("Database is empty, seeding initial data...")
                         seed_database(db)
@@ -113,6 +132,7 @@ async def init_db():
                     else:
                         logger.info(f"Database already contains {count} checklists, skipping seeding")
                 except Exception as table_error:
+                    logger.error(f"Error checking tables: {str(table_error)}", exc_info=True)
                     if "relation" in str(table_error) and "does not exist" in str(table_error):
                         logger.info("Tables don't exist, creating and seeding database...")
                         Base.metadata.create_all(bind=engine)
@@ -124,16 +144,17 @@ async def init_db():
                 
                 is_db_ready = True
                 db_init_error = None
+                logger.info("Database initialization completed successfully")
                 return  # Success - exit the function
             except Exception as e:
-                logger.error(f"Error during database check/seeding: {str(e)}")
+                logger.error(f"Error during database check/seeding: {str(e)}", exc_info=True)
                 db.rollback()
                 raise
             finally:
                 db.close()
                 
         except Exception as e:
-            logger.error(f"Database initialization attempt {attempt} failed: {str(e)}")
+            logger.error(f"Database initialization attempt {attempt} failed: {str(e)}", exc_info=True)
             if attempt < max_attempts:
                 logger.info("Retrying database initialization in 5 seconds...")
                 await asyncio.sleep(5)
@@ -452,42 +473,83 @@ async def telegram_status():
 # Health check endpoint
 @app.get("/health")
 async def health_check():
+    """Detailed health check endpoint with logging."""
+    logger.info("Health check started")
+    
+    # Log startup state
+    logger.info(f"Database ready: {is_db_ready}")
+    logger.info(f"Startup time: {startup_time}")
+    logger.info(f"Current time: {datetime.now()}")
+    logger.info(f"Grace period: {STARTUP_GRACE_PERIOD} seconds")
+    
     # Always return healthy during startup
     if not is_db_ready:
+        logger.warning("Database not ready yet, returning 'starting' status")
         return {
             "status": "starting",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "db_ready": False,
+            "startup_time": startup_time.isoformat(),
+            "elapsed_seconds": (datetime.now() - startup_time).total_seconds()
         }
     
     try:
         # Quick connection test
+        logger.info("Testing database connection...")
         await test_db_connection()
+        logger.info("Database connection successful")
+        
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "db_ready": True,
+            "startup_time": startup_time.isoformat(),
+            "elapsed_seconds": (datetime.now() - startup_time).total_seconds()
         }
     except Exception as e:
+        logger.error(f"Health check failed: {str(e)}", exc_info=True)
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "db_ready": False,
+            "startup_time": startup_time.isoformat(),
+            "elapsed_seconds": (datetime.now() - startup_time).total_seconds()
         }
 
 # Database health check endpoint - separate from main health check
 @app.get("/health/database")
 async def database_health_check(db: Session = Depends(get_db)):
+    """Detailed database health check with logging."""
+    logger.info("Database health check started")
+    
     try:
         # Test database connection
+        logger.info("Executing test query...")
         db.execute("SELECT 1")
+        logger.info("Test query successful")
+        
+        # Check if tables exist
+        logger.info("Checking for tables...")
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        logger.info(f"Found tables: {tables}")
+        
         return {
             "status": "healthy",
             "database": "connected",
+            "tables": tables,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        logger.error(f"Database health check failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=503,
-            detail={"status": "unhealthy", "database_error": str(e)}
+            detail={
+                "status": "unhealthy",
+                "database_error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
         )
 
 # Add new reset endpoint
