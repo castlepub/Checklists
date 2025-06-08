@@ -214,70 +214,82 @@ class TelegramUpdate(BaseModel):
     update_id: int
     message: Optional[dict] = None
 
+def get_last_reset_time(checklist_name: str, db: Session) -> Optional[datetime]:
+    """Get the last reset time for a checklist."""
+    try:
+        # Get the most recent signature for this checklist
+        last_signature = db.query(Signature).filter(
+            Signature.checklist_id == db.query(Checklist.id).filter(Checklist.name == checklist_name).scalar()
+        ).order_by(Signature.completed_at.desc()).first()
+        
+        if last_signature:
+            return last_signature.completed_at
+        return None
+    except Exception as e:
+        logger.error(f"Error getting last reset time: {str(e)}", exc_info=True)
+        return None
+
 @app.get("/api/checklists/{checklist_name}/chores")
 async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
+    """Get all chores for a specific checklist."""
     try:
-        logger.info(f"Getting chores for checklist: {checklist_name}")
-        
         # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
         if not checklist:
-            logger.error(f"Checklist not found: {checklist_name}")
-            raise HTTPException(status_code=404, detail="Checklist not found")
-        logger.info(f"Found checklist: {checklist.id}")
+            raise HTTPException(status_code=404, detail=f"Checklist {checklist_name} not found")
         
         # Get all sections for this checklist
         sections = db.query(Section).filter(Section.checklist_id == checklist.id).order_by(Section.order).all()
-        logger.info(f"Found {len(sections)} sections")
-        
-        # Get all chores for this checklist
-        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
-        logger.info(f"Found {len(chores)} chores")
         
         # Get the last reset time
-        last_reset = get_last_reset_time()
-        logger.info(f"Last reset time: {last_reset}")
-        
-        # Get all completions since last reset
-        completions = db.query(ChoreCompletion).filter(
-            ChoreCompletion.chore_id.in_([chore.id for chore in chores]),
-            ChoreCompletion.completed_at >= last_reset
-        ).all()
-        logger.info(f"Found {len(completions)} completions since last reset")
-        
-        # Create a map of chore_id to completion
-        completion_map = {c.chore_id: c for c in completions}
+        last_reset = get_last_reset_time(checklist_name, db)
         
         # Format the response
-        response = []
-        for chore in chores:
-            completion = completion_map.get(chore.id)
-            # Find the section for this chore
-            section = next((s for s in sections if s.name in chore.description), None)
-            section_name = section.name if section else "General Tasks"
-            
-            response.append({
-                "id": chore.id,
-                "description": chore.description,
-                "order": chore.order,
-                "section": section_name,
-                "completed": bool(completion),
-                "completed_by": completion.completed_by if completion else None,
-                "completed_at": completion.completed_at.isoformat() if completion else None,
-                "comment": completion.comment if completion else None
-            })
+        response = {
+            "checklist": {
+                "id": checklist.id,
+                "name": checklist.name,
+                "description": checklist.description,
+                "last_reset": last_reset.isoformat() if last_reset else None
+            },
+            "sections": []
+        }
         
-        logger.info(f"Returning {len(response)} chores")
+        # Add sections and their chores
+        for section in sections:
+            chores = db.query(Chore).filter(Chore.section_id == section.id).order_by(Chore.order).all()
+            section_data = {
+                "id": section.id,
+                "name": section.name,
+                "order": section.order,
+                "completed": section.completed,
+                "chores": []
+            }
+            
+            # Add chores for this section
+            for chore in chores:
+                # Get the latest completion for this chore
+                latest_completion = db.query(ChoreCompletion).filter(
+                    ChoreCompletion.chore_id == chore.id
+                ).order_by(ChoreCompletion.completed_at.desc()).first()
+                
+                chore_data = {
+                    "id": chore.id,
+                    "description": chore.description,
+                    "order": chore.order,
+                    "completed": latest_completion is not None if latest_completion else False,
+                    "completed_by": latest_completion.staff_name if latest_completion else None,
+                    "completed_at": latest_completion.completed_at.isoformat() if latest_completion else None,
+                    "comment": latest_completion.comment if latest_completion else None
+                }
+                section_data["chores"].append(chore_data)
+            
+            response["sections"].append(section_data)
+        
         return response
     except Exception as e:
         logger.error(f"Error getting checklist chores: {str(e)}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Failed to load checklist",
-                "detail": str(e)
-            }
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
