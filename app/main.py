@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 from .database import get_db, engine, Base, test_db_connection, SessionLocal
 from .models import Checklist, Chore, ChoreCompletion, Signature
-from .telegram import telegram
+from .telegram import telegram, uk_tz
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -332,7 +332,7 @@ async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(
             completion = ChoreCompletion(
                 chore_id=request.chore_id,
                 staff_name=request.staff_name,
-                completed_at=datetime.utcnow()
+                completed_at=datetime.now(uk_tz)
             )
             db.add(completion)
             
@@ -376,7 +376,7 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="Checklist not found")
 
     # Get all chores and their completion status
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(uk_tz)
     if request.checklist_id == "weekly":
         reset_time = get_last_weekly_reset_time(now)
     else:
@@ -395,7 +395,7 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
         checklist_id=checklist.id,
         staff_name=request.staff_name,
         signature_data=request.signature_data,
-        completed_at=datetime.utcnow()
+        completed_at=datetime.now(uk_tz)
     )
     db.add(signature)
     db.commit()
@@ -404,7 +404,7 @@ async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(g
     # First send individual completion summary
     completion_summary = f"🏁 {request.staff_name} completed {len(completed_chores)} tasks in {checklist.name.upper()}:\n"
     for completion in completed_chores:
-        time_str = completion.completed_at.strftime("%H:%M")
+        time_str = completion.completed_at.astimezone(uk_tz).strftime("%H:%M")
         completion_summary += f"\n✓ {completion.chore.description} ({time_str})"
     await telegram.send_message(completion_summary)
 
