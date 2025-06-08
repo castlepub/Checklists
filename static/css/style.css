@@ -242,4 +242,131 @@ body {
 .progress-bar {
     transition: width 0.3s ease;
     border-radius: 1rem;
+}
+
+/* Progress Display */
+.progress-display {
+    background: white;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.progress-emoji {
+    font-size: 2rem;
+    animation: bounce 1s infinite;
+}
+
+.progress-bar {
+    flex-grow: 1;
+    height: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    border-radius: 1rem;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 1rem;
+    color: #495057;
+    text-align: right;
+    min-width: 120px;
+}
+
+/* Achievement Popup */
+.achievement {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 1rem;
+    transform: translateX(120%);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1000;
+}
+
+.achievement.show {
+    transform: translateX(0);
+}
+
+.achievement-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.achievement-emoji {
+    font-size: 2rem;
+    animation: tada 1s infinite;
+}
+
+.achievement-message {
+    font-size: 0.9rem;
+    color: #495057;
+    max-width: 300px;
+}
+
+/* Floating Checkmark Animation */
+.floating-checkmark {
+    position: absolute;
+    color: #28a745;
+    font-size: 1.5rem;
+    pointer-events: none;
+    animation: float-up 1s ease-out forwards;
+}
+
+/* Animations */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes tada {
+    0% { transform: scale(1); }
+    10%, 20% { transform: scale(0.9) rotate(-3deg); }
+    30%, 50%, 70%, 90% { transform: scale(1.1) rotate(3deg); }
+    40%, 60%, 80% { transform: scale(1.1) rotate(-3deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes float-up {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(0, -20px) scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Hover effects for checkboxes */
+.form-check-input:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+
+/* Section completion effects */
+.section.completed {
+    background-color: #f8fff9;
+    border-left: 4px solid #28a745;
+}
+
+.section.completed .section-header {
+    color: #28a745;
 } 

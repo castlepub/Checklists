@@ -17,6 +17,104 @@ document.addEventListener('DOMContentLoaded', function() {
     let choreUpdateQueue = [];
     let isProcessingQueue = false;
 
+    // Add at the top of the file after existing variables
+    const encouragements = [
+        { threshold: 0, emoji: "🌱", message: "Let's get started!" },
+        { threshold: 0.25, emoji: "🌿", message: "Great progress!" },
+        { threshold: 0.50, emoji: "🌳", message: "Halfway there!" },
+        { threshold: 0.75, emoji: "🌺", message: "Almost done!" },
+        { threshold: 1, emoji: "🎉", message: "Amazing work!" }
+    ];
+
+    const funFacts = [
+        "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251! 🍺",
+        "The term 'pub' comes from 'public house' - they were originally private houses that served alcohol! 🏠",
+        "The first pubs were Roman taverns, built along Roman roads in Britain! 🛣️",
+        "The tradition of clinking glasses comes from medieval times when people would splash drinks into each other's cups to prove they weren't poisoned! 🥂",
+        "The world's longest pub crawl would take 27 years to visit every pub in the UK! 🚶‍♂️",
+        "The oldest known recipe for beer is over 4,000 years old! 🍻",
+        "In medieval England, pub visitors used to drink from leather tankards! 🥤",
+        "The first beer was made by accident when grain got wet, fermented, and created a primitive beer! 🌾",
+        "Some medieval pubs had beds upstairs, making them the first hotels! 🛏️",
+        "The tradition of 'last orders' began during WW1 to help factory workers stay productive! ⏰"
+    ];
+
+    let lastFunFactIndex = -1;
+    let achievementsShown = new Set();
+
+    function getRandomFunFact() {
+        let index;
+        do {
+            index = Math.floor(Math.random() * funFacts.length);
+        } while (index === lastFunFactIndex);
+        lastFunFactIndex = index;
+        return funFacts[index];
+    }
+
+    function showAchievement(message, emoji) {
+        if (achievementsShown.has(message)) return;
+        achievementsShown.add(message);
+        
+        const achievement = document.createElement('div');
+        achievement.className = 'achievement';
+        achievement.innerHTML = `
+            <div class="achievement-content">
+                <div class="achievement-emoji">${emoji}</div>
+                <div class="achievement-message">${message}</div>
+            </div>
+        `;
+        document.body.appendChild(achievement);
+        
+        // Animate in
+        setTimeout(() => achievement.classList.add('show'), 100);
+        
+        // Remove after animation
+        setTimeout(() => {
+            achievement.classList.remove('show');
+            setTimeout(() => achievement.remove(), 500);
+        }, 3000);
+    }
+
+    function updateProgressIndicator() {
+        const totalChores = currentChores.length;
+        if (totalChores === 0) return;
+        
+        const completedChores = currentChores.filter(chore => chore.completed).length;
+        const progress = completedChores / totalChores;
+        
+        // Find the appropriate encouragement
+        const encouragement = encouragements
+            .slice()
+            .reverse()
+            .find(e => progress >= e.threshold);
+        
+        // Update the progress display
+        const progressDisplay = document.getElementById('progressDisplay');
+        if (!progressDisplay) return;
+        
+        progressDisplay.innerHTML = `
+            <div class="progress-emoji">${encouragement.emoji}</div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progress * 100}%"></div>
+            </div>
+            <div class="progress-text">
+                ${encouragement.message}<br>
+                <small>${completedChores} of ${totalChores} tasks done</small>
+            </div>
+        `;
+        
+        // Show achievements for milestones
+        if (progress === 0.25) showAchievement("Quarter Way Hero!", "🌟");
+        if (progress === 0.5) showAchievement("Halfway Champion!", "🏆");
+        if (progress === 0.75) showAchievement("Almost There!", "⭐");
+        if (progress === 1) showAchievement("Checklist Master!", "👑");
+        
+        // Show random fun fact every 3 completed tasks
+        if (completedChores > 0 && completedChores % 3 === 0) {
+            showAchievement(getRandomFunFact(), "💡");
+        }
+    }
+
     // Event Listeners
     checklistSelect.addEventListener('change', loadChecklist);
     staffSelect.addEventListener('change', updateUI);
@@ -67,57 +165,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderChores() {
         choresContainer.innerHTML = '';
-        let currentSection = '';
-        let completedCount = 0;
-        let sectionChores = [];
         
+        // Add progress display
+        const progressDiv = document.createElement('div');
+        progressDiv.id = 'progressDisplay';
+        progressDiv.className = 'progress-display';
+        choresContainer.appendChild(progressDiv);
+        
+        // Group chores by section
+        const sections = {};
         currentChores.forEach(chore => {
-            // Check for section headers (denoted by # in the description)
-            if (chore.description.startsWith('# ')) {
-                // If we were collecting chores for a previous section, render it
-                if (currentSection && sectionChores.length > 0) {
-                    renderSection(currentSection, sectionChores);
-                    sectionChores = [];
-                }
-                
-                currentSection = chore.description.substring(2);
-                return;
-            }
-
-            // Check for sub-headers (denoted by - at the start)
-            if (chore.description.startsWith('- ')) {
-                const subHeader = document.createElement('div');
-                subHeader.className = 'sub-header ps-3 py-2';
-                subHeader.textContent = chore.description.substring(2);
-                choresContainer.appendChild(subHeader);
-                return;
-            }
-
-            if (chore.completed) {
-                completedCount++;
-            }
-
-            // Add chore to current section
-            if (currentSection) {
-                sectionChores.push(chore);
-            } else {
-                // If no section, render chore directly
-                renderChore(chore);
-            }
+            const sectionMatch = chore.description.match(/^([^:]+):/);
+            const sectionName = sectionMatch ? sectionMatch[1] : 'General Tasks';
+            if (!sections[sectionName]) sections[sectionName] = [];
+            sections[sectionName].push(chore);
         });
-
-        // Render the last section if any
-        if (currentSection && sectionChores.length > 0) {
-            renderSection(currentSection, sectionChores);
-        }
-
-        // Update progress bar
-        const progressBar = document.getElementById('progressBar');
-        const progressPercentage = (completedCount / currentChores.length) * 100;
-        progressBar.querySelector('.progress-bar').style.width = `${progressPercentage}%`;
-        progressBar.classList.remove('d-none');
-
-        updateSignatureSection();
+        
+        // Render each section
+        Object.entries(sections).forEach(([sectionName, sectionChores]) => {
+            renderSection(sectionName, sectionChores);
+        });
+        
+        updateProgressIndicator();
     }
 
     async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
@@ -345,6 +414,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add to queue instead of sending request immediately
         choreUpdateQueue.push({ choreId, checkbox });
         processChoreUpdateQueue();
+        
+        // Update progress immediately for better user feedback
+        updateProgressIndicator();
+        
+        // Add completion animation
+        if (checkbox.checked) {
+            const checkmark = document.createElement('div');
+            checkmark.className = 'floating-checkmark';
+            checkmark.textContent = '✓';
+            checkbox.parentElement.appendChild(checkmark);
+            
+            setTimeout(() => checkmark.remove(), 1000);
+        }
     }
 
     async function handleChoreComment(choreId, comment) {
