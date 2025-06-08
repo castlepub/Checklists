@@ -55,8 +55,22 @@ async def lifespan(app: FastAPI):
     # Application startup
     logger.info("Application startup initiated")
     
-    # Start database initialization in the background
-    init_task = asyncio.create_task(init_db())
+    try:
+        # Simple database connection test
+        logger.info("Testing database connection...")
+        await test_db_connection()
+        logger.info("Database connection successful")
+        
+        # Create tables if they don't exist
+        logger.info("Creating database tables...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        
+        # Start background task for seeding
+        asyncio.create_task(seed_database_if_empty())
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}", exc_info=True)
+        # Don't raise the error - let the app start anyway
     
     yield
     
@@ -65,78 +79,26 @@ async def lifespan(app: FastAPI):
     engine.dispose()
     logger.info("Database connections disposed")
 
-async def init_db():
-    """Initialize database in the background."""
-    global is_db_ready, db_init_error
-    logger.info("Database initialization started")
-    
-    max_attempts = 5
-    attempt = 1
-    
-    while attempt <= max_attempts:
+async def seed_database_if_empty():
+    """Seed the database if it's empty."""
+    try:
+        db = SessionLocal()
         try:
-            logger.info(f"Database initialization attempt {attempt}/{max_attempts}")
+            # Check if tables exist by querying the checklists table
+            result = db.execute(text("SELECT COUNT(*) FROM checklists"))
+            count = result.scalar()
             
-            # First test the connection
-            logger.info("Testing database connection...")
-            await test_db_connection()
-            logger.info("Database connection successful")
-            
-            # Create all tables
-            logger.info("Creating database tables...")
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created successfully")
-            
-            # Now check if we need to seed the database
-            db = SessionLocal()
-            try:
-                # Check if tables exist by querying the checklists table
-                try:
-                    logger.info("Checking for existing data...")
-                    result = db.execute(text("SELECT COUNT(*) FROM checklists"))
-                    count = result.scalar()
-                    logger.info(f"Found {count} checklists in database")
-                    
-                    if count == 0:
-                        logger.info("Database is empty, seeding initial data...")
-                        seed_database(db)
-                        db.commit()
-                        logger.info("Database seeded successfully")
-                    else:
-                        logger.info(f"Database already contains {count} checklists, skipping seeding")
-                except Exception as table_error:
-                    logger.error(f"Error checking tables: {str(table_error)}", exc_info=True)
-                    if "relation" in str(table_error) and "does not exist" in str(table_error):
-                        logger.info("Tables don't exist, creating and seeding database...")
-                        Base.metadata.create_all(bind=engine)
-                        seed_database(db)
-                        db.commit()
-                        logger.info("Database created and seeded successfully")
-                    else:
-                        raise
-                
-                is_db_ready = True
-                db_init_error = None
-                logger.info("Database initialization completed successfully")
-                return  # Success - exit the function
-            except Exception as e:
-                logger.error(f"Error during database check/seeding: {str(e)}", exc_info=True)
-                db.rollback()
-                raise
-            finally:
-                db.close()
-                
-        except Exception as e:
-            logger.error(f"Database initialization attempt {attempt} failed: {str(e)}", exc_info=True)
-            if attempt < max_attempts:
-                logger.info("Retrying database initialization in 5 seconds...")
-                await asyncio.sleep(5)
-                attempt += 1
+            if count == 0:
+                logger.info("Database is empty, seeding initial data...")
+                seed_database(db)
+                db.commit()
+                logger.info("Database seeded successfully")
             else:
-                logger.error("All database initialization attempts failed")
-                is_db_ready = False
-                db_init_error = str(e)
-                raise
+                logger.info(f"Database already contains {count} checklists, skipping seeding")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error seeding database: {str(e)}", exc_info=True)
 
 app = FastAPI(
     title="Castle Checklist App",
@@ -145,10 +107,33 @@ app = FastAPI(
     redoc_url=None  # Disable redoc in production
 )
 
-# Minimal health check endpoint for Railway
 @app.get("/")
 async def root():
-    return {"status": "ok"}
+    """Root endpoint that also serves as a health check."""
+    try:
+        # Test database connection
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            db_status = "connected"
+        except Exception as e:
+            logger.error(f"Database connection test failed: {str(e)}")
+            db_status = "error"
+        finally:
+            db.close()
+        
+        return {
+            "status": "ok",
+            "database": db_status,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
