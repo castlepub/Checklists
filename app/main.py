@@ -48,69 +48,6 @@ RESET_END_TIME = time(8, 0)    # 8:00 AM
 is_db_ready = False
 db_init_error = None
 startup_time = datetime.now()
-STARTUP_GRACE_PERIOD = 300  # 5 minutes
-SKIP_DB_CHECK = True  # Temporarily skip DB checks during deployment
-
-# Telegram configuration
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-def is_within_startup_grace_period() -> bool:
-    """Check if we're still within the startup grace period"""
-    return (datetime.now() - startup_time).total_seconds() < STARTUP_GRACE_PERIOD
-
-def is_within_reset_window(current_time: time) -> bool:
-    """Check if current time is within the reset window (6:00-8:00 AM)"""
-    return RESET_START_TIME <= current_time <= RESET_END_TIME
-
-def get_last_reset_time(now: datetime = None) -> datetime:
-    """Get the timestamp of the last reset"""
-    if now is None:
-        now = datetime.now(pytz.UTC)
-    
-    # If we're in the reset window, use yesterday's reset time
-    if is_within_reset_window(now.time()):
-        now = now - timedelta(days=1)
-    
-    # Set to the last reset time (6:00 AM)
-    last_reset = now.replace(hour=6, minute=0, second=0, microsecond=0)
-    return last_reset
-
-def get_last_weekly_reset_time(now: datetime = None) -> datetime:
-    """Get the timestamp of the last weekly reset (Monday 6:00 AM)"""
-    if now is None:
-        now = datetime.now(pytz.UTC)
-    
-    # Calculate days since last Monday
-    days_since_monday = now.weekday()
-    
-    # If it's Monday and we're in the reset window, use last week's reset time
-    if days_since_monday == 0 and is_within_reset_window(now.time()):
-        days_since_monday = 7
-    
-    # Get last Monday's reset time
-    last_reset = now - timedelta(days=days_since_monday)
-    last_reset = last_reset.replace(hour=6, minute=0, second=0, microsecond=0)
-    return last_reset
-
-@app.get("/health")
-async def health_check():
-    """Simple health check that always returns healthy during deployment."""
-    logger.info("Health check called")
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-@app.get("/health/database")
-async def database_health_check():
-    """Simple database health check that always returns healthy during deployment."""
-    logger.info("Database health check called")
-    return {
-        "status": "healthy",
-        "database": "connected",
-        "timestamp": datetime.utcnow().isoformat()
-    }
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -251,15 +188,6 @@ class TelegramUpdate(BaseModel):
     update_id: int
     message: Optional[dict] = None
 
-# Health check endpoint for Railway
-@app.get("/up")
-async def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-# Root endpoint
 @app.get("/")
 async def root(request: Request):
     # Return HTML response
@@ -267,159 +195,148 @@ async def root(request: Request):
 
 @app.get("/api/checklists/{checklist_name}/chores")
 async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
+    # Get the checklist
     checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
     if not checklist:
         raise HTTPException(status_code=404, detail="Checklist not found")
-
-    # Get all chores for the checklist
+    
+    # Get all chores for this checklist
     chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).order_by(Chore.order).all()
     
-    # Get the appropriate reset time based on checklist type
-    now = datetime.now(pytz.UTC)
-    if checklist_name == "weekly":
-        reset_time = get_last_weekly_reset_time(now)
-    else:
-        reset_time = get_last_reset_time(now)
+    # Get the last reset time
+    last_reset = get_last_reset_time()
     
-    # Get completions since last reset
-    chore_states = []
+    # Get all completions since last reset
+    completions = db.query(ChoreCompletion).filter(
+        ChoreCompletion.chore_id.in_([chore.id for chore in chores]),
+        ChoreCompletion.completed_at >= last_reset
+    ).all()
+    
+    # Create a map of chore_id to completion
+    completion_map = {c.chore_id: c for c in completions}
+    
+    # Format the response
+    response = []
     for chore in chores:
-        # Get the latest completion for this chore since the last reset
-        latest_completion = db.query(ChoreCompletion).filter(
-            and_(
-                ChoreCompletion.chore_id == chore.id,
-                ChoreCompletion.completed_at >= reset_time
-            )
-        ).order_by(ChoreCompletion.completed_at.desc()).first()
-        
-        chore_states.append({
+        completion = completion_map.get(chore.id)
+        response.append({
             "id": chore.id,
             "description": chore.description,
-            "completed": bool(latest_completion),
-            "completed_by": latest_completion.staff_name if latest_completion else None,
-            "completed_at": latest_completion.completed_at if latest_completion else None,
-            "comment": latest_completion.comment if latest_completion else None
+            "order": chore.order,
+            "completed": bool(completion),
+            "completed_by": completion.completed_by if completion else None,
+            "completed_at": completion.completed_at.isoformat() if completion else None,
+            "comment": completion.comment if completion else None
         })
     
-    return chore_states
+    return response
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
-    try:
-        chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
-        if not chore:
-            raise HTTPException(status_code=404, detail="Chore not found")
-
-        # Get the latest completion for this chore
-        latest_completion = db.query(ChoreCompletion).filter(
-            ChoreCompletion.chore_id == request.chore_id
-        ).order_by(ChoreCompletion.completed_at.desc()).first()
-
-        if request.completed:
-            # Try to send notification first
-            await telegram.notify_chore_completion(request.staff_name, chore.description)
-            
-            # If notification succeeds, update database
-            completion = ChoreCompletion(
-                chore_id=request.chore_id,
-                staff_name=request.staff_name,
-                completed_at=datetime.now(cet_tz)
-            )
-            db.add(completion)
-            
-            # If there was a previous completion, delete it
-            if latest_completion:
-                db.delete(latest_completion)
-                
-            db.commit()
-        else:
-            # If unchecking and there is a completion
-            if latest_completion:
-                # Try to send notification first
-                await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
-                
-                # If notification succeeds, update database
-                db.delete(latest_completion)
-                db.commit()
-
-        return {"status": "success"}
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error in complete_chore: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Get the chore
+    chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
+    if not chore:
+        raise HTTPException(status_code=404, detail="Chore not found")
+    
+    # Get the last reset time
+    last_reset = get_last_reset_time()
+    
+    # Check if there's an existing completion
+    existing = db.query(ChoreCompletion).filter(
+        ChoreCompletion.chore_id == request.chore_id,
+        ChoreCompletion.completed_at >= last_reset
+    ).first()
+    
+    if existing:
+        # Update existing completion
+        existing.completed = request.completed
+        existing.completed_by = request.staff_name if request.completed else None
+        existing.completed_at = datetime.utcnow() if request.completed else None
+        existing.comment = None  # Clear any existing comment
+    else:
+        # Create new completion
+        completion = ChoreCompletion(
+            chore_id=request.chore_id,
+            completed=request.completed,
+            completed_by=request.staff_name if request.completed else None,
+            completed_at=datetime.utcnow() if request.completed else None
+        )
+        db.add(completion)
+    
+    # Send Telegram notification
+    if request.completed:
+        await telegram.notify_chore_completion(request.staff_name, chore.description)
+    else:
+        await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
+    
+    db.commit()
+    return {"status": "success"}
 
 @app.post("/api/chore_comment")
 async def add_chore_comment(request: ChoreCommentRequest, db: Session = Depends(get_db)):
+    # Get the chore
+    chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
+    if not chore:
+        raise HTTPException(status_code=404, detail="Chore not found")
+    
+    # Get the last reset time
+    last_reset = get_last_reset_time()
+    
+    # Get or create completion
     completion = db.query(ChoreCompletion).filter(
-        ChoreCompletion.chore_id == request.chore_id
-    ).order_by(ChoreCompletion.completed_at.desc()).first()
-
-    if completion:
-        completion.comment = request.comment
-        db.commit()
-
+        ChoreCompletion.chore_id == request.chore_id,
+        ChoreCompletion.completed_at >= last_reset
+    ).first()
+    
+    if not completion:
+        completion = ChoreCompletion(
+            chore_id=request.chore_id,
+            completed=False,
+            completed_at=datetime.utcnow()
+        )
+        db.add(completion)
+    
+    # Update comment
+    completion.comment = request.comment
+    db.commit()
+    
     return {"status": "success"}
 
 @app.post("/api/submit_checklist")
 async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(get_db)):
-    checklist = db.query(Checklist).filter(Checklist.name == request.checklist_id).first()
+    # Get the checklist
+    checklist = db.query(Checklist).filter(Checklist.id == request.checklist_id).first()
     if not checklist:
         raise HTTPException(status_code=404, detail="Checklist not found")
-
-    # Get all chores and their completion status
-    now = datetime.now(cet_tz)
-    if request.checklist_id == "weekly":
-        reset_time = get_last_weekly_reset_time(now)
-    else:
-        reset_time = get_last_reset_time(now)
     
-    # Get all completed chores since last reset
-    completed_chores = db.query(ChoreCompletion).join(Chore).filter(
-        and_(
-            Chore.checklist_id == checklist.id,
-            ChoreCompletion.completed_at >= reset_time
-        )
-    ).order_by(ChoreCompletion.completed_at).all()
-
-    # Save signature
+    # Create signature
     signature = Signature(
-        checklist_id=checklist.id,
+        checklist_id=request.checklist_id,
         staff_name=request.staff_name,
         signature_data=request.signature_data,
-        completed_at=datetime.now(cet_tz)
+        signed_at=datetime.utcnow()
     )
     db.add(signature)
+    
+    # Send Telegram notification
+    await telegram.notify_checklist_completion(request.staff_name, checklist.name)
+    
     db.commit()
-
-    # Send Telegram notifications
-    # First send individual completion summary
-    completion_summary = f"🏁 {request.staff_name} completed {len(completed_chores)} tasks in {checklist.name.upper()}:\n"
-    for completion in completed_chores:
-        time_str = completion.completed_at.astimezone(cet_tz).strftime("%H:%M")
-        completion_summary += f"\n✓ {completion.chore.description} ({time_str})"
-    await telegram.send_message(completion_summary)
-
-    # Then send final completion notification
-    await telegram.notify_checklist_completion(request.staff_name, checklist.name.upper())
-
     return {"status": "success"}
 
-# Telegram webhook endpoint
 @app.post("/telegram/webhook")
 async def telegram_webhook(update: TelegramUpdate):
-    """Handle incoming updates from Telegram."""
-    logger.info("Received Telegram update")
+    """Handle incoming Telegram webhook updates."""
     try:
-        await telegram.handle_update(update.dict())
+        logger.info(f"Received Telegram webhook: {update}")
         return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Error processing Telegram update: {str(e)}")
+        logger.error(f"Error handling Telegram webhook: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"status": "error", "detail": str(e)}
         )
 
-# Test Telegram endpoint
 @app.get("/telegram/test")
 async def test_telegram():
     """Test Telegram notifications."""
@@ -449,7 +366,6 @@ async def test_telegram():
             }
         )
 
-# Manual webhook setup endpoint
 @app.get("/telegram/setup")
 async def setup_telegram():
     """Manually trigger Telegram bot setup."""
@@ -474,7 +390,6 @@ async def setup_telegram():
             content={"status": "error", "detail": str(e)}
         )
 
-# Webhook info endpoint
 @app.get("/telegram/status")
 async def telegram_status():
     """Get current Telegram webhook status."""
@@ -521,7 +436,6 @@ async def reset_database(db: Session = Depends(get_db)):
             }
         )
 
-# Add this new endpoint
 @app.post("/api/reset_checklist/{checklist_name}")
 async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
     try:
