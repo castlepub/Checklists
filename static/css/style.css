@@ -11,6 +11,20 @@ body {
     font-size: 1.1rem;
 }
 
+/* Reset button styling */
+#resetChecklist {
+    height: 3rem;
+    padding: 0 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+#resetChecklist:hover {
+    background-color: #dc3545;
+    color: white;
+    transform: scale(1.02);
+}
+
 /* Improved checkbox styling */
 .chore-item {
     display: flex;
@@ -20,6 +34,16 @@ body {
     border-bottom: 1px solid #dee2e6;
     background: white;
     transition: background-color 0.2s;
+}
+
+.chore-item.completed {
+    background-color: #f8f9fa;
+    opacity: 0.8;
+}
+
+.chore-item.completed .form-check-label {
+    text-decoration: line-through;
+    color: #6c757d;
 }
 
 .chore-item:active {
@@ -208,18 +232,6 @@ body {
         border-bottom-right-radius: 0;
         box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
     }
-}
-
-/* Completed chore styling */
-.chore-item.completed {
-    background-color: #f8fff9;
-}
-
-.chore-item.completed .form-check-label {
-    color: #198754;
-    text-decoration: line-through;
-    text-decoration-color: #198754;
-    text-decoration-thickness: 2px;
 }
 
 /* Completion info styling */

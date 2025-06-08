@@ -352,6 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="completion-info">
                     <small class="text-success">
                         ✓ Done by ${chore.completed_by} at ${timeString}
+                        ${chore.comment ? `<br>Comment: ${chore.comment}` : ''}
                     </small>
                 </div>
             `;
@@ -368,12 +369,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${chore.description}
                 </label>
                 ${completionInfo}
+                ${!chore.completed ? `
                 <div class="chore-comment">
                     <input type="text" class="form-control form-control-sm" 
                            placeholder="Add comment (optional)" 
                            value="${chore.comment || ''}"
                            data-chore-id="${chore.id}">
                 </div>
+                ` : ''}
             </div>
         `;
 
@@ -381,11 +384,40 @@ document.addEventListener('DOMContentLoaded', function() {
         const checkbox = choreDiv.querySelector('.chore-checkbox');
         checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox));
 
-        const commentInput = choreDiv.querySelector('input[type="text"]');
-        commentInput.addEventListener('click', (e) => e.stopPropagation());
-        commentInput.addEventListener('change', () => handleChoreComment(chore.id, commentInput.value));
+        // Add comment event listener only if the chore is not completed
+        if (!chore.completed) {
+            const commentInput = choreDiv.querySelector('.chore-comment input');
+            if (commentInput) {
+                commentInput.addEventListener('change', async (e) => {
+                    const comment = e.target.value.trim();
+                    try {
+                        const response = await fetch('/api/chore_completion', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                chore_id: chore.id,
+                                staff_name: staffSelect.value,
+                                completed: checkbox.checked,
+                                comment: comment
+                            })
+                        });
 
-        choresContainer.appendChild(choreDiv);
+                        if (!response.ok) throw new Error('Failed to update comment');
+                        
+                        // Update the chore in currentChores
+                        const chore = currentChores.find(c => c.id === chore.id);
+                        if (chore) chore.comment = comment;
+                    } catch (error) {
+                        console.error('Error updating comment:', error);
+                        alert('Failed to update comment. Please try again.');
+                    }
+                });
+            }
+        }
+
+        return choreDiv;
     }
 
     function updateSectionCheckbox(sectionName) {
