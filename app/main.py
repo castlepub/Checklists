@@ -145,6 +145,11 @@ app = FastAPI(
     redoc_url=None  # Disable redoc in production
 )
 
+# Minimal health check endpoint for Railway
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -187,11 +192,6 @@ class TelegramUpdate(BaseModel):
     """Simplified Telegram Update model"""
     update_id: int
     message: Optional[dict] = None
-
-@app.get("/")
-async def root(request: Request):
-    # Return HTML response
-    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/api/checklists/{checklist_name}/chores")
 async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
