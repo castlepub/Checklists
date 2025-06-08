@@ -300,9 +300,14 @@ document.addEventListener('DOMContentLoaded', function() {
         sectionCheckbox.checked = sectionChores.every(chore => chore.completed);
         sectionCheckbox.addEventListener('change', () => completeSection(sectionName));
         
-        const sectionTitle = document.createElement('h3');
-        sectionTitle.className = 'h5 mb-0';
+        const sectionTitle = document.createElement('label');
+        sectionTitle.className = 'form-check-label h5 mb-0 flex-grow-1';
         sectionTitle.textContent = sectionName;
+        sectionTitle.style.cursor = 'pointer';
+        sectionTitle.addEventListener('click', () => {
+            sectionCheckbox.checked = !sectionCheckbox.checked;
+            completeSection(sectionName);
+        });
         
         sectionHeader.appendChild(sectionCheckbox);
         sectionHeader.appendChild(sectionTitle);
@@ -326,6 +331,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const label = document.createElement('label');
             label.className = 'form-check-label flex-grow-1';
             label.textContent = chore.description;
+            label.style.cursor = 'pointer';
+            label.addEventListener('click', () => {
+                checkbox.checked = !checkbox.checked;
+                handleChoreCompletion(chore.id, checkbox);
+            });
             
             choreDiv.appendChild(checkbox);
             choreDiv.appendChild(label);
@@ -649,17 +659,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function completeSection(sectionName) {
         try {
+            // Get the section ID from the current chores
             const sectionChores = currentChores.filter(chore => chore.section === sectionName);
-            const allCompleted = sectionChores.every(chore => chore.completed);
-            
-            // Toggle all chores in the section
-            for (const chore of sectionChores) {
-                const checkbox = document.querySelector(`input[data-chore-id="${chore.id}"]`);
-                if (checkbox && checkbox.checked !== allCompleted) {
-                    checkbox.checked = allCompleted;
-                    await toggleChore(chore.id, checkbox);
-                }
+            if (sectionChores.length === 0) {
+                console.error('No chores found for section:', sectionName);
+                return;
             }
+            
+            // Get the section ID from the first chore
+            const sectionId = sectionChores[0].section_id;
+            if (!sectionId) {
+                console.error('No section ID found for section:', sectionName);
+                return;
+            }
+            
+            // Send request to complete the section
+            const response = await fetch(`/api/sections/${sectionId}/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    staff_name: staffSelect.value
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to complete section');
+            }
+            
+            // Update all checkboxes in the section
+            const checkboxes = document.querySelectorAll(`input[data-chore-id]`);
+            checkboxes.forEach(checkbox => {
+                const choreId = parseInt(checkbox.dataset.choreId);
+                const chore = currentChores.find(c => c.id === choreId);
+                if (chore && chore.section === sectionName) {
+                    checkbox.checked = true;
+                    const choreObj = currentChores.find(c => c.id === choreId);
+                    if (choreObj) {
+                        choreObj.completed = true;
+                    }
+                }
+            });
             
             updateProgressIndicator();
         } catch (error) {
