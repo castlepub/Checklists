@@ -105,14 +105,14 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Show achievements for milestones
-        if (progress === 0.25) showAchievement("Quarter Way Hero!", "🌟");
-        if (progress === 0.5) showAchievement("Halfway Champion!", "🏆");
-        if (progress === 0.75) showAchievement("Almost There!", "⭐");
-        if (progress === 1) showAchievement("Checklist Master!", "👑");
+        if (progress === 0.25) showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
+        if (progress === 0.50) showAchievement("Halfway Champion! 🏆", "You're crushing it!");
+        if (progress === 0.75) showAchievement("Almost There! ⭐", "The finish line is in sight!");
+        if (progress === 1) showAchievement("Checklist Master! 👑", "You've completed everything!");
         
         // Show random fun fact every 3 completed tasks
         if (completedChores > 0 && completedChores % 3 === 0) {
-            showAchievement(getRandomFunFact(), "💡");
+            showAchievement("Did You Know? 💡", getRandomFunFact());
         }
     }
 
