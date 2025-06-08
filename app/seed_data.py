@@ -12,7 +12,7 @@ def seed_database(db: Session):
     checklists_data = [
         {
             "name": "opening",
-            "description": "Opening Checklist",
+            "description": "Opening Checklist - Sign your initials when task is completed.",
             "chores": [
                 # Till
                 "Count till to 250",
@@ -72,7 +72,7 @@ def seed_database(db: Session):
                 
                 # Stock up
                 "Take pfand downstairs, sort into correct crates - The crates must be the same the bottles came in",
-                "Fill ice bag ½ full and lie flat in freezer, so ice doesn't stick together",
+                "Fill ice bag ⅓ full and lie flat in freezer, so ice doesn't stick together",
                 "Stock up all fridges, including wine, tonic, mixers and fridge drawers - 12 of each tonic flavour",
                 
                 # Floor
@@ -88,8 +88,7 @@ def seed_database(db: Session):
                 
                 # Bar
                 "Clean Coffee Machine (use cleaning tab on Sunday Night)",
-                "Empty drip trays and clean. Put them back once dry. Clean surfaces underneath.",
-                "Pour hot water down drain under taps",
+                "Empty drip trays and clean. Put them back once dry. Clean surfaces underneath. Pour hot water down drain under taps",
                 "Write down wastage on the google sheet",
                 "Douche taps, wipe nozzles clean and clean tap handles using disinfectant spray. Turn off",
                 "Clean all chopping boards, measures and ice bucket / scoop",
@@ -115,7 +114,7 @@ def seed_database(db: Session):
         },
         {
             "name": "kitchen-opening",
-            "description": "Kitchen Opening Checklist",
+            "description": "Kitchen Opening Checklist - Sign your initials when task is completed.",
             "chores": [
                 # Oven
                 "Using wet cloth wipe doors and edges, removing any soot and grease",
@@ -160,10 +159,9 @@ def seed_database(db: Session):
                 "Using a damp cloth clean the rims and outside of containers",
                 "Cover containers with clingfilm",
                 "Place containers back in fridge and cover with lids",
-                "Clean inside the microwave with sanitizer",
+                "Clean inside the microwave with sanitzer",
                 "Spray down prep area with sanitizer and wipe using cloth",
-                "Place pizza cutters and utensils back",
-                "Store and label leftover ingredients",
+                "Place pizza cutters and utenils back",
                 
                 # Fridge
                 "Bring up and bag dough (at least 50)",
@@ -178,7 +176,7 @@ def seed_database(db: Session):
         },
         {
             "name": "weekly",
-            "description": "Weekly Cleaning - ONE JOB EACH PER SHIFT MINIMUM - (Cross Out Fridges when complete)",
+            "description": "Weekly Cleaning - ONE JOB EACH PER SHIFT MINIMUM",
             "chores": [
                 # Food
                 "Clean all inside and outside fridges, handles, and seals",

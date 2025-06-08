@@ -18,7 +18,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let choreUpdateQueue = [];
     let isProcessingQueue = false;
 
-    // Add at the top of the file after existing variables
+    // Add achievements container to the body
+    const achievementsContainer = document.createElement('div');
+    achievementsContainer.id = 'achievementsContainer';
+    document.body.appendChild(achievementsContainer);
+
     const encouragements = [
         { threshold: 0, emoji: "🌱", message: "Let's get started!" },
         { threshold: 0.25, emoji: "🌿", message: "Great progress!" },
@@ -42,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let lastFunFactIndex = -1;
     let achievementsShown = new Set();
+    let lastProgressThreshold = 0;
 
     function getRandomFunFact() {
         let index;
@@ -52,28 +57,52 @@ document.addEventListener('DOMContentLoaded', function() {
         return funFacts[index];
     }
 
-    function showAchievement(message, emoji) {
-        if (achievementsShown.has(message)) return;
-        achievementsShown.add(message);
+    function showAchievement(title, message, type = 'milestone') {
+        const achievementId = `${title}-${message}`;
+        if (achievementsShown.has(achievementId)) return;
+        achievementsShown.add(achievementId);
         
         const achievement = document.createElement('div');
-        achievement.className = 'achievement';
+        achievement.className = `achievement ${type}`;
         achievement.innerHTML = `
             <div class="achievement-content">
-                <div class="achievement-emoji">${emoji}</div>
-                <div class="achievement-message">${message}</div>
+                <div class="achievement-emoji">${type === 'fun-fact' ? '💡' : '🏆'}</div>
+                <div class="achievement-message">
+                    <strong>${title}</strong><br>
+                    ${message}
+                </div>
             </div>
         `;
-        document.body.appendChild(achievement);
+        
+        achievementsContainer.appendChild(achievement);
         
         // Animate in
-        setTimeout(() => achievement.classList.add('show'), 100);
+        requestAnimationFrame(() => {
+            achievement.classList.add('show');
+        });
         
-        // Remove after animation
-        setTimeout(() => {
+        // Add click to dismiss
+        achievement.addEventListener('click', () => {
             achievement.classList.remove('show');
-            setTimeout(() => achievement.remove(), 500);
-        }, 3000);
+            setTimeout(() => {
+                achievement.remove();
+                achievementsShown.delete(achievementId);
+            }, 500);
+        });
+        
+        // Auto-dismiss after 10 seconds for fun facts, 15 seconds for milestones
+        const timeout = type === 'fun-fact' ? 10000 : 15000;
+        setTimeout(() => {
+            if (achievement.isConnected) {
+                achievement.classList.remove('show');
+                setTimeout(() => {
+                    if (achievement.isConnected) {
+                        achievement.remove();
+                        achievementsShown.delete(achievementId);
+                    }
+                }, 500);
+            }
+        }, timeout);
     }
 
     function updateProgressIndicator() {
@@ -93,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressDisplay = document.getElementById('progressDisplay');
         if (!progressDisplay) return;
         
+        // Update content
         progressDisplay.innerHTML = `
             <div class="progress-emoji">${encouragement.emoji}</div>
             <div class="progress-bar">
@@ -104,15 +134,31 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         
-        // Show achievements for milestones
-        if (progress === 0.25) showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
-        if (progress === 0.50) showAchievement("Halfway Champion! 🏆", "You're crushing it!");
-        if (progress === 0.75) showAchievement("Almost There! ⭐", "The finish line is in sight!");
-        if (progress === 1) showAchievement("Checklist Master! 👑", "You've completed everything!");
+        // Add bounce animation to emoji when threshold changes
+        if (encouragement.threshold > lastProgressThreshold) {
+            const emoji = progressDisplay.querySelector('.progress-emoji');
+            emoji.classList.add('bounce');
+            setTimeout(() => emoji.classList.remove('bounce'), 1000);
+        }
+        lastProgressThreshold = encouragement.threshold;
         
-        // Show random fun fact every 3 completed tasks
-        if (completedChores > 0 && completedChores % 3 === 0) {
-            showAchievement("Did You Know? 💡", getRandomFunFact());
+        // Show achievements for milestones
+        if (progress >= 0.25 && progress < 0.5) {
+            showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
+        }
+        if (progress >= 0.5 && progress < 0.75) {
+            showAchievement("Halfway Champion! 🏆", "You're crushing it!");
+        }
+        if (progress >= 0.75 && progress < 1) {
+            showAchievement("Almost There! ⭐", "The finish line is in sight!");
+        }
+        if (progress === 1) {
+            showAchievement("Checklist Master! 👑", "You've completed everything!");
+        }
+        
+        // Show random fun fact every 5 completed tasks
+        if (completedChores > 0 && completedChores % 5 === 0) {
+            showAchievement("Did You Know?", getRandomFunFact(), 'fun-fact');
         }
     }
 
@@ -485,7 +531,11 @@ document.addEventListener('DOMContentLoaded', function() {
             checkmark.textContent = '✓';
             checkbox.parentElement.appendChild(checkmark);
             
-            setTimeout(() => checkmark.remove(), 1000);
+            setTimeout(() => {
+                if (checkmark.isConnected) {
+                    checkmark.remove();
+                }
+            }, 1000);
         }
     }
 

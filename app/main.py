@@ -541,6 +541,28 @@ async def database_health_check(db: Session = Depends(get_db)):
             detail={"status": "unhealthy", "database_error": str(e)}
         )
 
+# Add new reset endpoint
+@app.post("/api/admin/reset-database")
+async def reset_database(db: Session = Depends(get_db)):
+    try:
+        # Drop all tables
+        Base.metadata.drop_all(bind=engine)
+        
+        # Create tables
+        Base.metadata.create_all(bind=engine)
+        
+        # Seed database
+        from .seed_data import seed_database
+        seed_database(db)
+        
+        return {"status": "success", "message": "Database reset successfully"}
+    except Exception as e:
+        logger.error(f"Error resetting database: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={"status": "error", "message": str(e)}
+        )
+
 # Add this new endpoint
 @app.post("/api/reset_checklist/{checklist_name}")
 async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
