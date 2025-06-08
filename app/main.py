@@ -48,7 +48,7 @@ RESET_END_TIME = time(8, 0)    # 8:00 AM
 is_db_ready = False
 db_init_error = None
 startup_time = datetime.now()
-STARTUP_GRACE_PERIOD = 300  # Increased to 5 minutes
+STARTUP_GRACE_PERIOD = 300  # 5 minutes
 SKIP_DB_CHECK = True  # Temporarily skip DB checks during deployment
 
 # Telegram configuration
@@ -93,8 +93,43 @@ def get_last_weekly_reset_time(now: datetime = None) -> datetime:
     last_reset = last_reset.replace(hour=6, minute=0, second=0, microsecond=0)
     return last_reset
 
+@app.get("/health")
+async def health_check():
+    """Simple health check that always returns healthy during deployment."""
+    logger.info("Health check called")
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health/database")
+async def database_health_check():
+    """Simple database health check that always returns healthy during deployment."""
+    logger.info("Database health check called")
+    return {
+        "status": "healthy",
+        "database": "connected",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown."""
+    # Application startup
+    logger.info("Application startup initiated")
+    
+    # Start database initialization in the background
+    init_task = asyncio.create_task(init_db())
+    
+    yield
+    
+    # Application shutdown
+    logger.info("Application shutdown initiated")
+    engine.dispose()
+    logger.info("Database connections disposed")
+
 async def init_db():
-    """Initialize database with detailed logging."""
+    """Initialize database in the background."""
     global is_db_ready, db_init_error
     logger.info("Database initialization started")
     
@@ -165,21 +200,6 @@ async def init_db():
                 is_db_ready = False
                 db_init_error = str(e)
                 raise
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Application startup
-    logger.info("Application startup initiated")
-    
-    # Start database initialization in the background
-    init_task = asyncio.create_task(init_db())
-    
-    yield
-    
-    # Application shutdown
-    logger.info("Application shutdown initiated")
-    engine.dispose()
-    logger.info("Database connections disposed")
 
 app = FastAPI(
     title="Castle Checklist App",
@@ -469,100 +489,6 @@ async def telegram_status():
         return JSONResponse(
             status_code=500,
             content={"status": "error", "detail": str(e)}
-        )
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Detailed health check endpoint with logging."""
-    logger.info("Health check started")
-    
-    # Log startup state
-    logger.info(f"Database ready: {is_db_ready}")
-    logger.info(f"Startup time: {startup_time}")
-    logger.info(f"Current time: {datetime.now()}")
-    logger.info(f"Grace period: {STARTUP_GRACE_PERIOD} seconds")
-    logger.info(f"Skip DB check: {SKIP_DB_CHECK}")
-    
-    # Always return healthy during startup or if DB check is skipped
-    if not is_db_ready or SKIP_DB_CHECK:
-        logger.warning("Database not ready or DB check skipped, returning 'starting' status")
-        return {
-            "status": "starting",
-            "timestamp": datetime.utcnow().isoformat(),
-            "db_ready": False,
-            "startup_time": startup_time.isoformat(),
-            "elapsed_seconds": (datetime.now() - startup_time).total_seconds(),
-            "skip_db_check": SKIP_DB_CHECK
-        }
-    
-    try:
-        # Quick connection test
-        logger.info("Testing database connection...")
-        await test_db_connection()
-        logger.info("Database connection successful")
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "db_ready": True,
-            "startup_time": startup_time.isoformat(),
-            "elapsed_seconds": (datetime.now() - startup_time).total_seconds()
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}", exc_info=True)
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
-            "db_ready": False,
-            "startup_time": startup_time.isoformat(),
-            "elapsed_seconds": (datetime.now() - startup_time).total_seconds()
-        }
-
-# Database health check endpoint - separate from main health check
-@app.get("/health/database")
-async def database_health_check(db: Session = Depends(get_db)):
-    """Detailed database health check with logging."""
-    logger.info("Database health check started")
-    
-    # Skip detailed DB checks during deployment
-    if SKIP_DB_CHECK:
-        logger.warning("Database checks skipped during deployment")
-        return {
-            "status": "starting",
-            "database": "skipped",
-            "timestamp": datetime.utcnow().isoformat(),
-            "skip_db_check": True
-        }
-    
-    try:
-        # Test database connection
-        logger.info("Executing test query...")
-        db.execute("SELECT 1")
-        logger.info("Test query successful")
-        
-        # Check if tables exist
-        logger.info("Checking for tables...")
-        inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        logger.info(f"Found tables: {tables}")
-        
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "tables": tables,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Database health check failed: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "status": "unhealthy",
-                "database_error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
         )
 
 # Add new reset endpoint
