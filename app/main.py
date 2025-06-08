@@ -244,27 +244,12 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
         # Get the last reset time
         last_reset = get_last_reset_time(checklist_name, db)
         
-        # Format the response
-        response = {
-            "checklist": {
-                "id": checklist.id,
-                "name": checklist.name,
-                "description": checklist.description,
-                "last_reset": last_reset.isoformat() if last_reset else None
-            },
-            "sections": []
-        }
+        # Format the response as an array of chores
+        response = []
         
         # Add sections and their chores
         for section in sections:
             chores = db.query(Chore).filter(Chore.section_id == section.id).order_by(Chore.order).all()
-            section_data = {
-                "id": section.id,
-                "name": section.name,
-                "order": section.order,
-                "completed": section.completed,
-                "chores": []
-            }
             
             # Add chores for this section
             for chore in chores:
@@ -277,14 +262,13 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
                     "id": chore.id,
                     "description": chore.description,
                     "order": chore.order,
+                    "section": section.name,
                     "completed": latest_completion is not None if latest_completion else False,
                     "completed_by": latest_completion.staff_name if latest_completion else None,
                     "completed_at": latest_completion.completed_at.isoformat() if latest_completion else None,
                     "comment": latest_completion.comment if latest_completion else None
                 }
-                section_data["chores"].append(chore_data)
-            
-            response["sections"].append(section_data)
+                response.append(chore_data)
         
         return response
     except Exception as e:
