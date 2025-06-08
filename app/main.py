@@ -545,22 +545,31 @@ async def database_health_check(db: Session = Depends(get_db)):
 @app.post("/api/admin/reset-database")
 async def reset_database(db: Session = Depends(get_db)):
     try:
-        # Drop all tables
-        Base.metadata.drop_all(bind=engine)
+        # First delete all existing data in the correct order
+        db.query(Signature).delete()
+        db.query(ChoreCompletion).delete()
+        db.query(Chore).delete()
+        db.query(Checklist).delete()
+        db.commit()
         
-        # Create tables
-        Base.metadata.create_all(bind=engine)
-        
-        # Seed database
+        # Now seed the database with fresh data
         from .seed_data import seed_database
         seed_database(db)
+        db.commit()
         
-        return {"status": "success", "message": "Database reset successfully"}
+        return {
+            "status": "success",
+            "message": "Database reset successfully"
+        }
     except Exception as e:
-        logger.error(f"Error resetting database: {e}")
+        db.rollback()
+        logger.error(f"Error during database reset: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail={"status": "error", "message": str(e)}
+            detail={
+                "status": "error",
+                "message": str(e)
+            }
         )
 
 # Add this new endpoint
