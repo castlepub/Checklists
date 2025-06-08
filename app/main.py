@@ -312,14 +312,19 @@ async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(
         ).first()
         
         if completion:
+            # Update existing completion
             completion.completed = request.completed
             completion.completed_at = datetime.now(cet_tz)
+            if hasattr(request, 'comment') and request.comment:
+                completion.comment = request.comment
         else:
+            # Create new completion
             completion = ChoreCompletion(
                 chore_id=request.chore_id,
                 staff_name=request.staff_name,
                 completed=request.completed,
-                completed_at=datetime.now(cet_tz)
+                completed_at=datetime.now(cet_tz),
+                comment=getattr(request, 'comment', None)
             )
             db.add(completion)
         
@@ -328,6 +333,9 @@ async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(
         # Send Telegram notification
         if request.completed:
             message = f"✅ {request.staff_name} completed: {chore.description}"
+            send_telegram_message(message)
+        else:
+            message = f"❌ {request.staff_name} uncompleted: {chore.description}"
             send_telegram_message(message)
         
         return {"status": "success"}

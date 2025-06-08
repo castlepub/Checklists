@@ -41,6 +41,7 @@ class ChoreCompletion(Base):
     id = Column(Integer, primary_key=True, index=True)
     chore_id = Column(Integer, ForeignKey("chores.id"))
     staff_name = Column(String)
+    completed = Column(Boolean, default=True)
     completed_at = Column(DateTime, default=datetime.utcnow)
     comment = Column(String, nullable=True)
     chore = relationship("Chore", back_populates="completions")
