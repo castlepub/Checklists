@@ -107,15 +107,10 @@ app = FastAPI(
     redoc_url=None  # Disable redoc in production
 )
 
-# Health check endpoint for Railway
-@app.get("/up")
+# Health check endpoints
+@app.get("/health")
 async def health_check():
-    """Simple health check endpoint for Railway."""
-    return {"status": "ok"}
-
-@app.get("/")
-async def root():
-    """Root endpoint that also serves as a health check."""
+    """Main health check endpoint."""
     try:
         # Test database connection
         db = SessionLocal()
@@ -129,17 +124,27 @@ async def root():
             db.close()
         
         return {
-            "status": "ok",
+            "status": "healthy",
             "database": db_status,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return {
-            "status": "error",
+            "status": "unhealthy",
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+@app.get("/up")
+async def up_check():
+    """Simple up check for Railway."""
+    return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {"status": "ok", "message": "Castle Checklist API is running"}
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
