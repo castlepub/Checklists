@@ -111,6 +111,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateProgressIndicator() {
+        const progressBar = document.getElementById('progressBar');
+        if (!progressBar) return;
+        
         const totalChores = currentChores.length;
         if (totalChores === 0) return;
         
@@ -230,8 +233,17 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(`/api/checklists/${checklistSelect.value}/chores`);
             const data = await response.json();
-            currentChores = data;
             
+            if (!response.ok) {
+                throw new Error(data.detail || 'Failed to load checklist');
+            }
+            
+            if (!Array.isArray(data)) {
+                console.error('Invalid response format:', data);
+                throw new Error('Invalid response format from server');
+            }
+            
+            currentChores = data;
             renderChores();
             choresList.classList.remove('d-none');
             updateSignatureSection();
@@ -239,6 +251,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error loading checklist:', error);
             alert('Failed to load checklist. Please try again.');
+            choresList.classList.add('d-none');
+            signatureSection.classList.add('d-none');
         }
     }
 
@@ -522,12 +536,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateSignatureSection() {
-        const allChoresCompleted = currentChores.every(chore => chore.completed);
-        signatureSection.classList.toggle('d-none', !allChoresCompleted);
+        if (!Array.isArray(currentChores)) {
+            console.error('currentChores is not an array:', currentChores);
+            return;
+        }
         
-        if (allChoresCompleted) {
+        const allCompleted = currentChores.every(chore => chore.completed);
+        signatureSection.classList.toggle('d-none', !allCompleted);
+        
+        if (allCompleted) {
             signaturePad.clear();
-            resizeSignaturePad();
         }
     }
 

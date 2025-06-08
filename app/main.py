@@ -267,8 +267,14 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
         
         return response
     except Exception as e:
-        logger.error(f"Error getting checklist chores: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting checklist chores: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Failed to load checklist",
+                "detail": str(e)
+            }
+        )
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
