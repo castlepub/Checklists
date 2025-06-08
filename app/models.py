@@ -1,9 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Text
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
-Base = declarative_base()
+from .database import Base
 
 class Checklist(Base):
     __tablename__ = "checklists"
@@ -23,15 +21,18 @@ class Section(Base):
     order = Column(Integer)
     completed = Column(Boolean, default=False)
     checklist = relationship("Checklist", back_populates="sections")
+    chores = relationship("Chore", back_populates="section")
 
 class Chore(Base):
     __tablename__ = "chores"
     
     id = Column(Integer, primary_key=True, index=True)
     checklist_id = Column(Integer, ForeignKey("checklists.id"))
+    section_id = Column(Integer, ForeignKey("sections.id"))
     description = Column(String)
     order = Column(Integer)
     checklist = relationship("Checklist", back_populates="chores")
+    section = relationship("Section", back_populates="chores")
     completions = relationship("ChoreCompletion", back_populates="chore")
 
 class ChoreCompletion(Base):
