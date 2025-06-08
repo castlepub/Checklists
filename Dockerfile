@@ -7,8 +7,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app \
-    PORT=8000
+    PYTHONPATH=/app
 
 # Install system dependencies
 RUN apt-get update \
@@ -27,8 +26,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the rest of the application
 COPY . .
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Expose the port
-EXPOSE ${PORT}
+EXPOSE 8000
 
 # Command to run the application
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT} 
+CMD ["./start.sh"] 
