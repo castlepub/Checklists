@@ -277,44 +277,63 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
-    # Get the chore
-    chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
-    if not chore:
-        raise HTTPException(status_code=404, detail="Chore not found")
-    
-    # Get the last reset time
-    last_reset = get_last_reset_time()
-    
-    # Check if there's an existing completion
-    existing = db.query(ChoreCompletion).filter(
-        ChoreCompletion.chore_id == request.chore_id,
-        ChoreCompletion.completed_at >= last_reset
-    ).first()
-    
-    if existing:
-        # Update existing completion
-        existing.completed = request.completed
-        existing.completed_by = request.staff_name if request.completed else None
-        existing.completed_at = datetime.utcnow() if request.completed else None
-        existing.comment = None  # Clear any existing comment
-    else:
-        # Create new completion
-        completion = ChoreCompletion(
-            chore_id=request.chore_id,
-            completed=request.completed,
-            completed_by=request.staff_name if request.completed else None,
-            completed_at=datetime.utcnow() if request.completed else None
-        )
-        db.add(completion)
-    
-    # Send Telegram notification
-    if request.completed:
-        await telegram.notify_chore_completion(request.staff_name, chore.description)
-    else:
-        await telegram.notify_chore_uncomplete(request.staff_name, chore.description)
-    
-    db.commit()
-    return {"status": "success"}
+    """Mark a chore as completed or uncompleted."""
+    try:
+        # Get the chore
+        chore = db.query(Chore).filter(Chore.id == request.chore_id).first()
+        if not chore:
+            raise HTTPException(status_code=404, detail="Chore not found")
+        
+        # Get the checklist name for this chore
+        checklist = db.query(Checklist).join(Section).join(Chore).filter(Chore.id == request.chore_id).first()
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        # Get the last reset time
+        last_reset = get_last_reset_time(checklist.name, db)
+        
+        # Check if we're within the reset window
+        now = datetime.now(cet_tz)
+        if last_reset:
+            last_reset = last_reset.astimezone(cet_tz)
+            reset_start = datetime.combine(now.date(), RESET_START_TIME, tzinfo=cet_tz)
+            reset_end = datetime.combine(now.date(), RESET_END_TIME, tzinfo=cet_tz)
+            
+            if reset_start <= now <= reset_end and last_reset.date() == now.date():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot modify chores during reset window (6:00-8:00 AM)"
+                )
+        
+        # Create or update completion
+        completion = db.query(ChoreCompletion).filter(
+            ChoreCompletion.chore_id == request.chore_id,
+            ChoreCompletion.staff_name == request.staff_name
+        ).first()
+        
+        if completion:
+            completion.completed = request.completed
+            completion.completed_at = datetime.now(cet_tz)
+        else:
+            completion = ChoreCompletion(
+                chore_id=request.chore_id,
+                staff_name=request.staff_name,
+                completed=request.completed,
+                completed_at=datetime.now(cet_tz)
+            )
+            db.add(completion)
+        
+        db.commit()
+        
+        # Send Telegram notification
+        if request.completed:
+            message = f"✅ {request.staff_name} completed: {chore.description}"
+            send_telegram_message(message)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error completing chore: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_comment")
 async def add_chore_comment(request: ChoreCommentRequest, db: Session = Depends(get_db)):
