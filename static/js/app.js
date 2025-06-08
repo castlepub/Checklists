@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitChecklistBtn = document.getElementById('submitChecklist');
 
     let currentChores = [];
+    let choreUpdateQueue = [];
+    let isProcessingQueue = false;
 
     // Event Listeners
     checklistSelect.addEventListener('change', loadChecklist);
@@ -301,32 +303,48 @@ document.addEventListener('DOMContentLoaded', function() {
         sectionCheckbox.indeterminate = someChecked && !allChecked;
     }
 
-    async function handleChoreCompletion(choreId, checkbox) {
-        const staffName = staffSelect.value;
+    async function processChoreUpdateQueue() {
+        if (isProcessingQueue || choreUpdateQueue.length === 0) return;
         
-        try {
-            const response = await fetch('/api/chore_completion', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chore_id: choreId,
-                    staff_name: staffName,
-                    completed: checkbox.checked
-                })
-            });
+        isProcessingQueue = true;
+        
+        while (choreUpdateQueue.length > 0) {
+            const { choreId, checkbox } = choreUpdateQueue.shift();
+            try {
+                const response = await fetch('/api/chore_completion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chore_id: choreId,
+                        staff_name: staffSelect.value,
+                        completed: checkbox.checked
+                    })
+                });
 
-            if (!response.ok) throw new Error('Failed to update chore status');
-            
-            const chore = currentChores.find(c => c.id === choreId);
-            chore.completed = checkbox.checked;
-            updateSignatureSection();
-        } catch (error) {
-            console.error('Error updating chore:', error);
-            checkbox.checked = !checkbox.checked; // Revert the checkbox
-            alert('Failed to update chore. Please try again.');
+                if (!response.ok) throw new Error('Failed to update chore status');
+                
+                const chore = currentChores.find(c => c.id === choreId);
+                chore.completed = checkbox.checked;
+                updateSignatureSection();
+                
+                // Add a small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (error) {
+                console.error('Error updating chore:', error);
+                checkbox.checked = !checkbox.checked; // Revert the checkbox
+                alert('Failed to update chore. Please try again.');
+            }
         }
+        
+        isProcessingQueue = false;
+    }
+
+    async function handleChoreCompletion(choreId, checkbox) {
+        // Add to queue instead of sending request immediately
+        choreUpdateQueue.push({ choreId, checkbox });
+        processChoreUpdateQueue();
     }
 
     async function handleChoreComment(choreId, comment) {
@@ -358,18 +376,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (allChoresCompleted) {
             signaturePad.clear();
+            resizeSignaturePad();
         }
     }
 
     async function submitChecklist() {
-        if (signaturePad.isEmpty()) {
-            alert('Please sign before submitting.');
+        if (!signaturePad || signaturePad.isEmpty()) {
+            alert('Please provide your signature before submitting.');
             return;
         }
 
         const staffName = staffSelect.value;
         const checklistId = checklistSelect.value;
-        
+        const signatureData = signaturePad.toDataURL();
+
         try {
             const response = await fetch('/api/submit_checklist', {
                 method: 'POST',
@@ -379,17 +399,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     checklist_id: checklistId,
                     staff_name: staffName,
-                    signature_data: signaturePad.toDataURL()
+                    signature_data: signatureData
                 })
             });
 
             if (!response.ok) throw new Error('Failed to submit checklist');
             
             alert('Checklist submitted successfully!');
-            checklistSelect.value = '';
-            staffSelect.value = '';
-            currentChores = [];
-            updateUI();
+            location.reload();
         } catch (error) {
             console.error('Error submitting checklist:', error);
             alert('Failed to submit checklist. Please try again.');
