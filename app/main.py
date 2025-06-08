@@ -212,65 +212,10 @@ class TelegramUpdate(BaseModel):
 # Health check endpoint for Railway
 @app.get("/up")
 async def health_check():
-    """
-    Main health check endpoint that Railway uses to determine if the service is healthy.
-    Returns 200 OK during startup grace period or if database is ready and connected.
-    """
-    global is_db_ready, db_init_error
-    
-    # Log the health check request
-    logger.info("Health check request received at /up")
-    logger.info(f"Database ready: {is_db_ready}, Init error: {db_init_error}")
-    
-    # During startup grace period, always return OK
-    if is_within_startup_grace_period():
-        logger.info("Within startup grace period - returning OK")
-        return {"status": "ok", "message": "Application starting"}
-    
-    # If database initialization failed, return error
-    if db_init_error is not None:
-        logger.error(f"Health check failed - DB init error: {db_init_error}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "error",
-                "detail": f"Database initialization failed: {db_init_error}"
-            }
-        )
-    
-    # If database is not ready yet, return service unavailable
-    if not is_db_ready:
-        logger.warning("Health check - DB not ready yet")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "initializing",
-                "detail": "Database initialization in progress"
-            }
-        )
-    
-    # Test current database connection
-    try:
-        db = SessionLocal()
-        try:
-            # Simple query to test connection
-            db.execute(text("SELECT 1"))
-            logger.info("Health check passed - DB connection successful")
-            return {"status": "ok"}
-        except Exception as e:
-            logger.error(f"Health check DB query failed: {str(e)}")
-            raise
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Health check failed - DB connection error: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "error",
-                "detail": "Database connection test failed"
-            }
-        )
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 # Root endpoint
 @app.get("/")
