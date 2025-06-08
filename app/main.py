@@ -107,6 +107,12 @@ app = FastAPI(
     redoc_url=None  # Disable redoc in production
 )
 
+# Health check endpoint for Railway
+@app.get("/up")
+async def health_check():
+    """Simple health check endpoint for Railway."""
+    return {"status": "ok"}
+
 @app.get("/")
 async def root():
     """Root endpoint that also serves as a health check."""
