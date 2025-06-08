@@ -12,6 +12,17 @@ class Checklist(Base):
     name = Column(String, unique=True, index=True)
     description = Column(String, nullable=True)
     chores = relationship("Chore", back_populates="checklist")
+    sections = relationship("Section", back_populates="checklist")
+
+class Section(Base):
+    __tablename__ = "sections"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    checklist_id = Column(Integer, ForeignKey("checklists.id"))
+    name = Column(String)
+    order = Column(Integer)
+    completed = Column(Boolean, default=False)
+    checklist = relationship("Checklist", back_populates="sections")
 
 class Chore(Base):
     __tablename__ = "chores"
@@ -40,4 +51,12 @@ class Signature(Base):
     checklist_id = Column(Integer, ForeignKey("checklists.id"))
     staff_name = Column(String)
     signature_data = Column(Text)  # Base64 encoded PNG
-    completed_at = Column(DateTime, default=datetime.utcnow) 
+    completed_at = Column(DateTime, default=datetime.utcnow)
+
+class Staff(Base):
+    __tablename__ = "staff"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    telegram_id = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True) 
