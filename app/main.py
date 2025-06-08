@@ -71,25 +71,11 @@ async def lifespan(app: FastAPI):
         logger.info("Creating database tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Error creating tables: {str(e)}", exc_info=True)
-        # Don't raise the error - let the app start anyway
-    
-    yield
-    
-    # Application shutdown
-    logger.info("Application shutdown initiated")
-    engine.dispose()
-    logger.info("Database connections disposed")
-
-async def seed_database_if_empty():
-    """Seed the database if it's empty."""
-    try:
-        logger.info("Starting database seeding check...")
+        
+        # Seed database if empty
+        logger.info("Checking if database needs seeding...")
         db = SessionLocal()
         try:
-            # Check if tables exist by querying the checklists table
-            logger.info("Checking if checklists table exists...")
             result = db.execute(text("SELECT COUNT(*) FROM checklists"))
             count = result.scalar()
             logger.info(f"Found {count} checklists in database")
@@ -102,14 +88,21 @@ async def seed_database_if_empty():
             else:
                 logger.info(f"Database already contains {count} checklists, skipping seeding")
         except Exception as e:
-            logger.error(f"Error during database seeding check: {str(e)}", exc_info=True)
+            logger.error(f"Error during database seeding: {str(e)}", exc_info=True)
             raise
         finally:
             db.close()
-            logger.info("Database session closed after seeding check")
+            logger.info("Database session closed after seeding")
     except Exception as e:
-        logger.error(f"Error in seed_database_if_empty: {str(e)}", exc_info=True)
+        logger.error(f"Error during database initialization: {str(e)}", exc_info=True)
         raise
+    
+    yield
+    
+    # Application shutdown
+    logger.info("Application shutdown initiated")
+    engine.dispose()
+    logger.info("Database connections disposed")
 
 app = FastAPI(
     title="Castle Checklist App",
@@ -175,15 +168,6 @@ async def startup_event():
 async def shutdown_event():
     """Log application shutdown."""
     logger.info("Application shutdown initiated")
-
-# Initialize database tables
-Base.metadata.create_all(bind=engine)
-
-# Start database seeding in background
-@app.on_event("startup")
-async def seed_database():
-    """Start database seeding as a background task."""
-    asyncio.create_task(seed_database_if_empty())
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
