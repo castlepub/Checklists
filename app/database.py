@@ -1,10 +1,9 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 import os
 from dotenv import load_dotenv
 import asyncio
-from sqlalchemy import text
 import logging
 
 # Configure logging
@@ -30,16 +29,13 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     logger.info("Converted postgres:// to postgresql:// in DATABASE_URL")
 
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
+
 # Create SQLAlchemy engine with detailed logging
 try:
     logger.info("Creating SQLAlchemy engine...")
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        echo=True  # Enable SQL query logging
-    )
+    engine = create_engine(DATABASE_URL)
     logger.info("SQLAlchemy engine created successfully")
 except Exception as e:
     logger.error(f"Failed to create SQLAlchemy engine: {str(e)}", exc_info=True)
