@@ -60,6 +60,10 @@ is_db_ready = False
 db_init_error = None
 startup_time = datetime.now()
 
+# Get environment variables
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
@@ -534,8 +538,9 @@ async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 def send_telegram_message(message: str):
+    """Send a message to Telegram."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Telegram configuration missing")
+        logger.warning("Telegram configuration missing, skipping notification")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -548,7 +553,8 @@ def send_telegram_message(message: str):
         response = requests.post(url, data=data)
         response.raise_for_status()
     except Exception as e:
-        print(f"Failed to send Telegram message: {e}")
+        logger.error(f"Failed to send Telegram message: {str(e)}")
+        # Don't raise the exception, just log it
 
 @app.post("/api/chores/{chore_id}/toggle")
 async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db)):
@@ -571,31 +577,74 @@ async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db))
 
 @app.post("/api/sections/{section_id}/complete")
 async def complete_section(section_id: int, data: dict, db: Session = Depends(get_db)):
-    section = db.query(Section).filter(Section.id == section_id).first()
-    if not section:
-        raise HTTPException(status_code=404, detail="Section not found")
-
-    # Get all uncompleted chores in the section
-    uncompleted_chores = db.query(Chore).filter(
-        Chore.section_id == section_id,
-        Chore.completed == False
-    ).all()
-
-    # Mark all chores as completed
-    staff_name = data.get("staff_name")
-    completed_at = datetime.utcnow()
-    
-    for chore in uncompleted_chores:
-        chore.completed = True
-        chore.completed_by = staff_name
-        chore.completed_at = completed_at
-
-    # Send Telegram notification for the section
-    message = f"✅ <b>{staff_name}</b> completed the {section.name} section!"
-    send_telegram_message(message)
-
-    db.commit()
-    return {"completed": True, "chores_completed": len(uncompleted_chores)}
+    """Complete all chores in a section."""
+    try:
+        # Get the section
+        section = db.query(Section).filter(Section.id == section_id).first()
+        if not section:
+            raise HTTPException(status_code=404, detail="Section not found")
+        
+        # Get the checklist for this section
+        checklist = db.query(Checklist).filter(Checklist.id == section.checklist_id).first()
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        # Get the last reset time
+        last_reset = get_last_reset_time(checklist.name, db)
+        
+        # Check if we're within the reset window
+        now = datetime.now(cet_tz)
+        if last_reset:
+            last_reset = last_reset.astimezone(cet_tz)
+            reset_start = datetime.combine(now.date(), RESET_START_TIME, tzinfo=cet_tz)
+            reset_end = datetime.combine(now.date(), RESET_END_TIME, tzinfo=cet_tz)
+            
+            if reset_start <= now <= reset_end and last_reset.date() == now.date():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot modify chores during reset window (6:00-8:00 AM)"
+                )
+        
+        # Get all chores in the section
+        chores = db.query(Chore).filter(Chore.section_id == section_id).all()
+        
+        # Get staff name from request
+        staff_name = data.get("staff_name")
+        if not staff_name:
+            raise HTTPException(status_code=400, detail="Staff name is required")
+        
+        # Complete all chores in the section
+        for chore in chores:
+            # Create or update completion
+            completion = db.query(ChoreCompletion).filter(
+                ChoreCompletion.chore_id == chore.id,
+                ChoreCompletion.staff_name == staff_name
+            ).first()
+            
+            if completion:
+                # Update existing completion
+                completion.completed = True
+                completion.completed_at = datetime.now(cet_tz)
+            else:
+                # Create new completion
+                completion = ChoreCompletion(
+                    chore_id=chore.id,
+                    staff_name=staff_name,
+                    completed=True,
+                    completed_at=datetime.now(cet_tz)
+                )
+                db.add(completion)
+        
+        db.commit()
+        
+        # Send Telegram notification
+        message = f"✅ {staff_name} completed section: {section.name}"
+        send_telegram_message(message)
+        
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error completing section: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/debug/db-state")
 async def debug_db_state(db: Session = Depends(get_db)):
