@@ -12,8 +12,8 @@ import pytz
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set UK timezone
-uk_tz = pytz.timezone('Europe/London')
+# Set Central European timezone
+cet_tz = pytz.timezone('Europe/Berlin')  # Berlin uses CET/CEST
 
 class TelegramNotifier:
     def __init__(self):
@@ -102,19 +102,19 @@ class TelegramNotifier:
                 logger.error(f"Error sending Telegram message: {str(e)}")
 
     async def notify_chore_completion(self, staff_name: str, chore_description: str):
-        time = datetime.now(uk_tz).strftime("%H:%M")
+        time = datetime.now(cet_tz).strftime("%H:%M")
         message = f"✅ {staff_name} marked '{chore_description}' as done at {time}"
         logger.info(f"Notifying chore completion: {message}")
         await self.send_message(message)
 
     async def notify_chore_uncomplete(self, staff_name: str, chore_description: str):
-        time = datetime.now(uk_tz).strftime("%H:%M")
+        time = datetime.now(cet_tz).strftime("%H:%M")
         message = f"❌ {staff_name} marked '{chore_description}' as NOT done at {time}"
         logger.info(f"Notifying chore uncomplete: {message}")
         await self.send_message(message)
 
     async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
-        time = datetime.now(uk_tz).strftime("%H:%M")
+        time = datetime.now(cet_tz).strftime("%H:%M")
         message = f"{staff_name} COMPLETED FULL {checklist_name} at {time} ✅"
         logger.info(f"Notifying checklist completion: {message}")
         await self.send_message(message)
