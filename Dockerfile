@@ -7,7 +7,8 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    PORT=8080
 
 # Install system dependencies
 RUN apt-get update \
@@ -30,7 +31,7 @@ COPY . .
 RUN chmod +x start.sh
 
 # Expose the port
-EXPOSE 8000
+EXPOSE ${PORT}
 
 # Command to run the application
 CMD ["./start.sh"] 
