@@ -208,8 +208,10 @@ body {
 }
 
 .completed-by {
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: #6c757d;
+    margin-left: 2.5rem;
+    font-style: italic;
 }
 
 /* Comment input styling */
@@ -516,4 +518,10 @@ body {
 
 .section.completed .section-header {
     color: #28a745;
+}
+
+/* Checkbox styling */
+.form-check-input:checked {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
 } 

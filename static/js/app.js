@@ -387,8 +387,20 @@ function renderSection(sectionName, sectionChores) {
             handleChoreCompletion(chore.id, checkbox);
         });
         
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'd-flex flex-column w-100';
+        contentDiv.appendChild(label);
+        
+        // Add completed by info if task is completed
+        if (chore.completed && chore.completed_by) {
+            const completedByDiv = document.createElement('div');
+            completedByDiv.className = 'completed-by';
+            completedByDiv.textContent = `Completed by ${chore.completed_by}`;
+            contentDiv.appendChild(completedByDiv);
+        }
+        
         choreDiv.appendChild(checkbox);
-        choreDiv.appendChild(label);
+        choreDiv.appendChild(contentDiv);
         choresList.appendChild(choreDiv);
     });
     
