@@ -384,11 +384,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 hour12: true 
             });
             completionInfo = `
-                <div class="completion-info">
-                    <small class="text-success">
-                        ✓ Done by ${chore.completed_by} at ${timeString}
-                    </small>
-                </div>
+                <small class="text-success ms-2">
+                    ✓ Done by ${chore.completed_by} at ${timeString}
+                </small>
+            `;
+        }
+
+        // Add comment display if exists
+        let commentDisplay = '';
+        if (chore.comment) {
+            commentDisplay = `
+                <small class="text-muted ms-2">
+                    <i class="fas fa-comment"></i> ${chore.comment}
+                </small>
             `;
         }
 
@@ -399,12 +407,15 @@ document.addEventListener('DOMContentLoaded', function() {
                        ${chore.completed ? 'checked' : ''}>
             </div>
             <div class="flex-grow-1">
-                <label class="form-check-label" for="chore-${chore.id}">
-                    ${chore.description}
-                </label>
-                ${completionInfo}
+                <div class="d-flex align-items-center">
+                    <label class="form-check-label" for="chore-${chore.id}">
+                        ${chore.description}
+                    </label>
+                    ${completionInfo}
+                    ${commentDisplay}
+                </div>
                 ${!chore.completed ? `
-                <div class="chore-comment">
+                <div class="chore-comment mt-1">
                     <input type="text" class="form-control form-control-sm" 
                            placeholder="Add comment (optional)" 
                            value="${chore.comment || ''}"
