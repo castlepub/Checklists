@@ -17,48 +17,12 @@
         <div class="container">
             <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
-                    <img src="/static/logo.png" alt="Logo" class="me-3" style="height: 40px;">
+                    <img src="/static/logo.png" alt="Logo" class="me-3" style="height: 60px;">
                     <h1 class="h4 mb-0">Castle Checklist</h1>
                 </div>
                 <div class="d-flex align-items-center">
-                    <select id="staffSelect" class="form-select form-select-sm me-2">
-                        <option value="">Select Staff</option>
-                    </select>
-                    <button id="resetButton" class="btn btn-outline-light btn-sm">Reset Checklist</button>
-                </div>
-            </div>
-        </div>
-    </header>
-    <div class="container py-3">
-        <h1 class="text-center mb-3">Castle Pub Checklists</h1>
-        
-        <!-- Checklist Selection -->
-        <div class="card mb-3 shadow-sm">
-            <div class="card-body">
-                <div class="mb-3">
-                    <label for="checklistSelect" class="form-label fw-bold">Select Checklist:</label>
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-lg" id="checklistSelect">
-                            <option value="">Choose a checklist...</option>
-                            <option value="opening">Opening Checklist</option>
-                            <option value="closing">Closing Checklist</option>
-                            <option value="kitchen-opening">Kitchen Opening Checklist</option>
-                            <option value="kitchen-closing">Kitchen Closing Checklist</option>
-                            <option value="weekly">Weekly Cleaning</option>
-                        </select>
-                        <button id="resetChecklist" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" style="display: none; min-width: 100px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
-                                <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
-                                <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
-                            </svg>
-                            Reset
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="staffSelect" class="form-label fw-bold">Your Name:</label>
-                    <select class="form-select form-select-lg" id="staffSelect">
+                    <label for="staffSelect" class="form-label fw-bold me-2 mb-0">Staff:</label>
+                    <select id="staffSelect" class="form-select">
                         <option value="">Select your name...</option>
                         <option value="Nora">Nora</option>
                         <option value="Josh">Josh</option>
@@ -74,36 +38,21 @@
                 </div>
             </div>
         </div>
-
-        <!-- Progress Bar -->
-        <div id="progressBar" class="progress mb-3 d-none">
-            <div class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
-        </div>
-
-        <!-- Chores List -->
-        <div id="choresList" class="card mb-3 d-none shadow-sm">
-            <div class="card-body p-0">
-                <div id="choresContainer">
-                    <!-- Chores will be populated here -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Signature Pad -->
-        <div id="signatureSection" class="card mb-3 d-none shadow">
+    </header>
+    <div class="container py-3">
+        <h1 class="text-center mb-3">Castle Pub Checklists</h1>
+        <div class="card mx-auto" style="max-width: 900px;">
             <div class="card-body">
-                <h2 class="card-title h5 mb-3">Sign to Complete</h2>
-                <canvas id="signaturePad" class="mb-3"></canvas>
-                <div class="d-flex gap-2">
-                    <button id="clearSignature" class="btn btn-outline-secondary flex-grow-1">Clear</button>
-                    <button id="submitChecklist" class="btn btn-success flex-grow-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check2-circle me-1" viewBox="0 0 16 16">
-                            <path d="M2.5 8a5.5 5.5 0 0 1 8.25-4.764.5.5 0 0 0 .5-.866A6.5 6.5 0 1 0 14.5 8a.5.5 0 0 0-1 0 5.5 5.5 0 1 1-11 0z"/>
-                            <path d="M15.354 3.354a.5.5 0 0 0-.708-.708L8 9.293 5.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z"/>
-                        </svg>
-                        Submit Checklist
-                    </button>
+                <div class="mb-3">
+                    <label for="checklistSelect" class="form-label fw-bold">Select Checklist:</label>
+                    <div class="d-flex align-items-center">
+                        <select id="checklistSelect" class="form-select me-2">
+                            <option value="">Choose a checklist...</option>
+                        </select>
+                        <button id="resetChecklist" class="btn btn-outline-danger"><i class="fas fa-redo"></i> Reset</button>
+                    </div>
                 </div>
+                <div id="choresContainer"></div>
             </div>
         </div>
     </div>
