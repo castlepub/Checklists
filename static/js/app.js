@@ -8,6 +8,13 @@ let completedChores = new Set();
 let completedSections = new Set();
 let totalChores = 0;
 let completedCount = 0;
+let checklistSelect;
+let staffSelect;
+let choresContainer;
+let signatureSection;
+let clearSignatureBtn;
+let submitChecklistBtn;
+let resetChecklistBtn;
 
 // Add achievements container to the body
 const achievementsContainer = document.createElement('div');
@@ -162,13 +169,13 @@ async function initializeApp() {
         console.log('Initializing application...');
         
         // Get DOM elements
-        const checklistSelect = document.getElementById('checklistSelect');
-        const staffSelect = document.getElementById('staffSelect');
-        const choresContainer = document.getElementById('choresContainer');
-        const signatureSection = document.getElementById('signatureSection');
-        const clearSignatureBtn = document.getElementById('clearSignatureBtn');
-        const submitChecklistBtn = document.getElementById('submitChecklistBtn');
-        const resetChecklistBtn = document.getElementById('resetChecklistBtn');
+        checklistSelect = document.getElementById('checklistSelect');
+        staffSelect = document.getElementById('staffSelect');
+        choresContainer = document.getElementById('choresContainer');
+        signatureSection = document.getElementById('signatureSection');
+        clearSignatureBtn = document.getElementById('clearSignatureBtn');
+        submitChecklistBtn = document.getElementById('submitChecklistBtn');
+        resetChecklistBtn = document.getElementById('resetChecklistBtn');
         
         // Verify all required elements exist
         if (!checklistSelect) throw new Error('Checklist select element not found');
