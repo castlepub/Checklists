@@ -525,32 +525,40 @@ async def telegram_status():
 # Add new reset endpoint
 @app.post("/api/admin/reset-database")
 async def reset_database(db: Session = Depends(get_db)):
+    """Reset and reseed the database."""
     try:
-        # First delete all existing data in the correct order
-        db.query(Signature).delete()
-        db.query(ChoreCompletion).delete()
-        db.query(Chore).delete()
-        db.query(Checklist).delete()
-        db.commit()
+        logger.info("Starting database reset")
         
-        # Now seed the database with fresh data
+        # Drop all tables
+        logger.info("Dropping all tables")
+        Base.metadata.drop_all(bind=engine)
+        
+        # Create tables with new schema
+        logger.info("Creating tables with new schema")
+        Base.metadata.create_all(bind=engine)
+        
+        # Add new columns to chores table
+        logger.info("Adding new columns to chores table")
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed_by VARCHAR"))
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP"))
+                conn.commit()
+                logger.info("Added new columns successfully")
+            except Exception as e:
+                logger.warning(f"Could not add new columns: {str(e)}")
+        
+        # Reseed database
+        logger.info("Reseeding database")
         seed_database(db)
-        db.commit()
         
-        return {
-            "status": "success",
-            "message": "Database reset successfully"
-        }
+        logger.info("Database reset and reseeded successfully")
+        return {"status": "success", "message": "Database reset and reseeded successfully"}
+        
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error during database reset: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "status": "error",
-                "message": str(e)
-            }
-        )
+        logger.error(f"Error resetting database: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/reset_checklist/{checklist_name}")
 async def reset_checklist(checklist_name: str, request: Request, db: Session = Depends(get_db)):
