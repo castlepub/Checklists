@@ -1,12 +1,27 @@
 from sqlalchemy.orm import Session
-from .models import Checklist, Section, Chore
+from .models import Checklist, Section, Chore, ChoreCompletion
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 def seed_database(db: Session):
+    """Seed the database with initial data."""
+    logger.info("Starting database seeding...")
+    
+    # Delete all existing data
+    db.query(ChoreCompletion).delete()
+    db.query(Chore).delete()
+    db.query(Section).delete()
+    db.query(Checklist).delete()
+    db.commit()
+    
     # Create staff members
     staff_names = [
         "Nora", "Josh", "Vaile", "Melissa", "Paddy",
         "Pero", "Guy", "Dean", "Bethany", "Henry"
     ]
+    logger.info(f"Adding {len(staff_names)} staff members...")
 
     # Create checklists with sections and chores
     checklists_data = [
@@ -317,15 +332,18 @@ def seed_database(db: Session):
 
     # Add checklists, sections, and chores to database
     for checklist_data in checklists_data:
+        logger.info(f"Creating checklist: {checklist_data['name']}")
         checklist = Checklist(
             name=checklist_data["name"],
             description=checklist_data["description"]
         )
         db.add(checklist)
         db.flush()  # Get the checklist ID
+        logger.info(f"Created checklist with ID: {checklist.id}")
 
         # Add sections for this checklist
         for section_order, section_data in enumerate(checklist_data["sections"], 1):
+            logger.info(f"Creating section: {section_data['name']} for checklist {checklist.name}")
             section = Section(
                 checklist_id=checklist.id,
                 name=section_data["name"],
@@ -333,15 +351,23 @@ def seed_database(db: Session):
             )
             db.add(section)
             db.flush()  # Get the section ID
+            logger.info(f"Created section with ID: {section.id}")
 
             # Add chores for this section
             for chore_order, description in enumerate(section_data["chores"], 1):
+                logger.info(f"Creating chore: {description} for section {section.name}")
                 chore = Chore(
+                    checklist_id=checklist.id,
                     section_id=section.id,
                     description=description,
                     order=chore_order
                 )
                 db.add(chore)
 
-    db.commit()
-    print("Database seeded successfully!") 
+    try:
+        db.commit()
+        logger.info("Database seeded successfully!")
+    except Exception as e:
+        logger.error(f"Error committing database changes: {str(e)}", exc_info=True)
+        db.rollback()
+        raise 
