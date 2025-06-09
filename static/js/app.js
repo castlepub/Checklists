@@ -12,6 +12,9 @@ let staffSelect;
 let choreContainer;
 let successSection;
 let submitChecklistBtn;
+let signaturePad;
+let clearSignatureBtn;
+let resetChecklistBtn;
 
 // Add achievements container to the body
 const achievementsContainer = document.createElement('div');
@@ -139,22 +142,31 @@ function updateProgressIndicator() {
 }
 
 // Initialize the application
-async function initializeApp() {
+document.addEventListener('DOMContentLoaded', async function() {
     try {
         console.log('Starting application initialization...');
         
         // Get DOM elements
         console.log('Getting DOM elements...');
         checklistSelect = document.getElementById('checklistSelect');
-        console.log('checklistSelect:', checklistSelect);
         staffSelect = document.getElementById('staffSelect');
-        console.log('staffSelect:', staffSelect);
         choreContainer = document.getElementById('choreContainer');
-        console.log('choreContainer:', choreContainer);
         successSection = document.getElementById('successSection');
-        console.log('successSection:', successSection);
         submitChecklistBtn = document.getElementById('submitChecklistBtn');
-        console.log('submitChecklistBtn:', submitChecklistBtn);
+        clearSignatureBtn = document.getElementById('clearSignatureBtn');
+        resetChecklistBtn = document.getElementById('resetChecklist');
+        
+        // Initialize signature pad
+        const canvas = document.getElementById('signaturePad');
+        if (canvas) {
+            signaturePad = new SignaturePad(canvas, {
+                minWidth: 2,
+                maxWidth: 4,
+                penColor: "rgb(0, 0, 0)"
+            });
+            resizeSignaturePad();
+            window.addEventListener('resize', resizeSignaturePad);
+        }
         
         // Verify all required elements exist
         if (!checklistSelect) throw new Error('Checklist select element not found');
@@ -173,8 +185,43 @@ async function initializeApp() {
             if (checklistSelect.value) {
                 loadChecklist(checklistSelect.value);
             }
+            resetChecklistBtn.style.display = checklistSelect.value && staffSelect.value ? 'inline-flex' : 'none';
         });
-        staffSelect.addEventListener('change', updateUI);
+        
+        staffSelect.addEventListener('change', () => {
+            updateUI();
+            resetChecklistBtn.style.display = checklistSelect.value && staffSelect.value ? 'inline-flex' : 'none';
+        });
+        
+        if (clearSignatureBtn) {
+            clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
+        }
+        
+        if (resetChecklistBtn) {
+            resetChecklistBtn.addEventListener('click', async () => {
+                const checklistName = checklistSelect.value;
+                if (!checklistName) return;
+                
+                if (!confirm(`Are you sure you want to reset the ${checklistName} checklist? This will remove all completed tasks and signatures.`)) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/reset_checklist/${checklistName}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to reset checklist');
+                    
+                    // Reload the page to show fresh checklist
+                    location.reload();
+                } catch (error) {
+                    console.error('Error resetting checklist:', error);
+                    alert('Failed to reset checklist. Please try again.');
+                }
+            });
+        }
+        
         console.log('Event listeners added');
 
         // Initial UI update
@@ -187,6 +234,7 @@ async function initializeApp() {
             loadChecklist(checklistSelect.value);
         }
 
+        console.log('Application initialization complete');
     } catch (error) {
         console.error('Error during application initialization:', error);
         // Show error to user
@@ -195,12 +243,6 @@ async function initializeApp() {
         errorDiv.textContent = `Failed to initialize application: ${error.message}. Please refresh the page to try again.`;
         document.querySelector('.container').prepend(errorDiv);
     }
-}
-
-// Start the application when the module loads
-console.log('Starting application...');
-initializeApp().then(() => {
-    console.log('Application initialization complete');
 });
 
 function updateUI() {
