@@ -154,28 +154,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         staffSelect = document.getElementById('staffSelect');
         choreContainer = document.getElementById('choreContainer');
         successSection = document.getElementById('successSection');
-        submitChecklistBtn = document.getElementById('submitChecklistBtn');
-        clearSignatureBtn = document.getElementById('clearSignatureBtn');
         resetChecklistBtn = document.getElementById('resetChecklist');
-        
-        // Initialize signature pad
-        const canvas = document.getElementById('signaturePad');
-        if (canvas) {
-            signaturePad = new SignaturePad(canvas, {
-                minWidth: 2,
-                maxWidth: 4,
-                penColor: "rgb(0, 0, 0)"
-            });
-            resizeSignaturePad();
-            window.addEventListener('resize', resizeSignaturePad);
-        }
         
         // Verify all required elements exist
         if (!checklistSelect) throw new Error('Checklist select element not found');
         if (!staffSelect) throw new Error('Staff select element not found');
         if (!choreContainer) throw new Error('Chores container element not found');
         if (!successSection) throw new Error('Success section element not found');
-        if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
         
         console.log('Populating staff dropdown...');
         await populateStaffDropdown();
@@ -198,10 +183,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             updateUI();
             resetChecklistBtn.style.display = checklistSelect.value && staffSelect.value ? 'inline-flex' : 'none';
         });
-        
-        if (clearSignatureBtn) {
-            clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
-        }
         
         if (resetChecklistBtn) {
             resetChecklistBtn.addEventListener('click', async () => {
