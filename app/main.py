@@ -509,13 +509,17 @@ async def reset_database(db: Session = Depends(get_db)):
         )
 
 @app.post("/api/reset_checklist/{checklist_name}")
-def reset_checklist(checklist_name: str, request: Request, db: Session = Depends(get_db)):
+async def reset_checklist(checklist_name: str, request: Request, db: Session = Depends(get_db)):
     """Reset a checklist by clearing all completion records."""
     try:
         # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
         if not checklist:
             raise HTTPException(status_code=404, detail=f"Checklist {checklist_name} not found")
+
+        # Get request body
+        body = await request.json()
+        staff_name = body.get('staff_name', 'Someone')
 
         # Get all sections for this checklist
         sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
@@ -532,7 +536,6 @@ def reset_checklist(checklist_name: str, request: Request, db: Session = Depends
         db.commit()
 
         # Send Telegram notification
-        staff_name = request.json.get('staff_name', 'Someone')
         message = f"{staff_name} reset the {checklist_name} checklist"
         send_telegram_message(message)
 
