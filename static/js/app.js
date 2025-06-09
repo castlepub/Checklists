@@ -246,7 +246,7 @@ async function loadChecklist() {
     if (!checklistSelect.value || !staffSelect.value) return;
 
     try {
-        const response = await fetch(`/api/checklists/${checklistSelect.value}/chores`);
+        const response = await fetch(window.location.origin + `/api/checklists/${checklistSelect.value}/chores`);
         const data = await response.json();
         
         if (!response.ok) {
@@ -664,7 +664,7 @@ function updateProgress() {
 
 async function toggleChore(choreId, checkbox) {
     try {
-        const response = await fetch(`/api/chores/${choreId}/toggle`, {
+        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -705,7 +705,7 @@ async function completeSection(sectionName) {
         }
         
         // Send request to complete the section
-        const response = await fetch(`/api/sections/${sectionId}/complete`, {
+        const response = await fetch(window.location.origin + `/api/sections/${sectionId}/complete`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -744,7 +744,7 @@ async function completeSection(sectionName) {
 async function populateChecklistDropdown() {
     try {
         console.log('Fetching checklists...');
-        const response = await fetch('/api/checklists');
+        const response = await fetch(window.location.origin + '/api/checklists');
         console.log('Response status:', response.status);
         
         if (!response.ok) {
@@ -786,7 +786,7 @@ async function resetChecklist() {
     }
 
     try {
-        const response = await fetch(`/api/checklists/${currentChecklist}/reset`, {
+        const response = await fetch(window.location.origin + `/api/checklists/${currentChecklist}/reset`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -826,4 +826,60 @@ async function resetChecklist() {
         console.error('Error resetting checklist:', error);
         alert('Failed to reset checklist. Please try again.');
     }
-} 
+}
+
+// Get DOM elements
+const checklistSelect = document.getElementById('checklistSelect');
+const staffSelect = document.getElementById('staffSelect');
+const choresContainer = document.getElementById('choresContainer');
+const signatureSection = document.getElementById('signatureSection');
+const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+const submitChecklistBtn = document.getElementById('submitChecklistBtn');
+const resetChecklistBtn = document.getElementById('resetChecklistBtn');
+
+// Initialize the application
+async function initializeApp() {
+    try {
+        console.log('Initializing application...');
+        
+        // Verify all required elements exist
+        if (!checklistSelect) throw new Error('Checklist select element not found');
+        if (!staffSelect) throw new Error('Staff select element not found');
+        if (!choresContainer) throw new Error('Chores container element not found');
+        if (!signatureSection) throw new Error('Signature section element not found');
+        if (!clearSignatureBtn) throw new Error('Clear signature button not found');
+        if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
+        if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
+        
+        // Initialize signature pad
+        const canvas = document.getElementById('signaturePad');
+        if (!canvas) throw new Error('Signature pad canvas not found');
+        signaturePad = new SignaturePad(canvas);
+        
+        // Populate checklist dropdown
+        await populateChecklistDropdown();
+        console.log('Checklist dropdown populated');
+        
+        // Add event listeners
+        checklistSelect.addEventListener('change', loadChecklist);
+        staffSelect.addEventListener('change', updateUI);
+        clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
+        submitChecklistBtn.addEventListener('click', submitChecklist);
+        resetChecklistBtn.addEventListener('click', resetChecklist);
+        console.log('Event listeners added');
+        
+        // Initial UI update
+        updateUI();
+        
+    } catch (error) {
+        console.error('Error during application initialization:', error);
+        // Show error to user
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger';
+        errorDiv.textContent = `Failed to initialize application: ${error.message}. Please refresh the page to try again.`;
+        document.querySelector('.container').prepend(errorDiv);
+    }
+}
+
+// Since we're using type="module" and defer, we can initialize directly
+initializeApp(); 
