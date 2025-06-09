@@ -780,4 +780,23 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Failed to reset checklist. Please try again.');
         }
     }
+
+    // Populate checklist dropdown
+    async function populateChecklistDropdown() {
+        try {
+            const response = await fetch('/api/checklists');
+            const data = await response.json();
+            const checklistSelect = document.getElementById('checklistSelect');
+            checklistSelect.innerHTML = '<option value="">Choose a checklist...</option>';
+            data.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.name;
+                option.textContent = c.description || c.name;
+                checklistSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to load checklists:', error);
+        }
+    }
+    populateChecklistDropdown();
 }); 

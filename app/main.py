@@ -732,4 +732,9 @@ def init_db():
                 logger.info("Database session closed after seeding")
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
-        raise 
+        raise
+
+@app.get("/api/checklists")
+def get_checklists(db: Session = Depends(get_db)):
+    checklists = db.query(Checklist).all()
+    return [{"name": c.name, "description": c.description} for c in checklists] 
