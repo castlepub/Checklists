@@ -15,6 +15,8 @@ let submitChecklistBtn;
 let signaturePad;
 let clearSignatureBtn;
 let resetChecklistBtn;
+let lastUpdateTime = 0;
+const UPDATE_THROTTLE = 300; // Minimum time between updates in ms
 
 // Add achievements container to the body
 const achievementsContainer = document.createElement('div');
@@ -358,110 +360,244 @@ function renderChores(chores) {
     updateProgressIndicator();
 }
 
-function renderSection(sectionName, sectionChores) {
-    console.log('Starting to render section:', sectionName);
-    console.log('Section chores:', sectionChores);
+// Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Throttle function
+function throttle(func, limit) {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    }
+}
+
+// Create throttled version of updateProgressIndicator
+const throttledUpdateProgress = throttle(updateProgressIndicator, 100);
+
+async function handleChoreCompletion(choreId, checkbox, sectionName) {
+    try {
+        if (!staffSelect.value) {
+            console.error('No staff member selected');
+            checkbox.checked = !checkbox.checked;
+            alert('Please select a staff member first.');
+            return;
+        }
+
+        // Optimistic update
+        const chore = currentChores.find(c => c.id === choreId);
+        if (chore) {
+            chore.completed = checkbox.checked;
+            chore.completed_by = staffSelect.value;
+            chore.completed_at = new Date().toISOString();
+        }
+
+        // Add completion animation immediately
+        if (checkbox.checked) {
+            const checkmark = document.createElement('div');
+            checkmark.className = 'floating-checkmark';
+            checkmark.textContent = '✓';
+            checkbox.parentElement.appendChild(checkmark);
+            setTimeout(() => checkmark.remove(), 1000);
+        }
+
+        // Update UI immediately
+        const choreDiv = checkbox.closest('.chore-item');
+        if (choreDiv) {
+            if (checkbox.checked) {
+                choreDiv.classList.add('completed');
+            } else {
+                choreDiv.classList.remove('completed');
+            }
+        }
+
+        // Throttle API calls
+        const now = Date.now();
+        if (now - lastUpdateTime < UPDATE_THROTTLE) {
+            choreUpdateQueue.push({ choreId, checkbox });
+            if (!isProcessingQueue) {
+                setTimeout(processChoreUpdateQueue, UPDATE_THROTTLE);
+            }
+            return;
+        }
+        lastUpdateTime = now;
+
+        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                staff_name: staffSelect.value,
+                completed: checkbox.checked
+            })
+        });
+
+        if (!response.ok) {
+            const responseData = await response.json().catch(() => null);
+            console.error('Server error:', responseData);
+            // Revert optimistic update
+            if (chore) {
+                chore.completed = !checkbox.checked;
+                chore.completed_by = null;
+                chore.completed_at = null;
+            }
+            if (choreDiv) {
+                if (!checkbox.checked) {
+                    choreDiv.classList.add('completed');
+                } else {
+                    choreDiv.classList.remove('completed');
+                }
+            }
+            throw new Error(responseData?.detail || 'Failed to update chore status');
+        }
+
+        // Update section status
+        if (sectionName) {
+            const sectionChores = currentChores.filter(c => c.section === sectionName);
+            const allSectionChoresCompleted = sectionChores.every(c => c.completed);
+            const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
+            sectionCheckboxes.forEach(cb => {
+                if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
+                    cb.checked = allSectionChoresCompleted;
+                }
+            });
+        }
+
+        // Check if all chores are completed
+        const allChoresCompleted = currentChores.every(c => c.completed);
+        if (allChoresCompleted) {
+            successSection.classList.remove('d-none');
+            showConfetti();
+        } else {
+            successSection.classList.add('d-none');
+        }
+
+        // Update progress with throttling
+        throttledUpdateProgress();
+
+    } catch (error) {
+        console.error('Error updating chore:', error);
+        checkbox.checked = !checkbox.checked;
+        alert(error.message || 'Failed to update chore. Please try again.');
+    }
+}
+
+// Update the processChoreUpdateQueue function
+async function processChoreUpdateQueue() {
+    if (isProcessingQueue || choreUpdateQueue.length === 0) return;
     
+    isProcessingQueue = true;
+    const batchSize = 5; // Process 5 updates at a time
+    
+    while (choreUpdateQueue.length > 0) {
+        const batch = choreUpdateQueue.splice(0, batchSize);
+        const promises = batch.map(({ choreId, checkbox }) => 
+            fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    staff_name: staffSelect.value,
+                    completed: checkbox.checked
+                })
+            })
+        );
+
+        try {
+            await Promise.all(promises);
+        } catch (error) {
+            console.error('Error processing chore updates:', error);
+            // Continue processing the queue despite errors
+        }
+
+        // Add a small delay between batches
+        if (choreUpdateQueue.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+    
+    isProcessingQueue = false;
+    throttledUpdateProgress();
+}
+
+// Optimized render functions
+function renderSection(sectionName, sectionChores) {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section mb-4';
     sectionDiv.dataset.sectionName = sectionName;
-    
-    // Section header
+
     const sectionHeader = document.createElement('div');
     sectionHeader.className = 'card-header bg-light d-flex align-items-center gap-2';
-    
-    const sectionCheckbox = document.createElement('input');
-    sectionCheckbox.type = 'checkbox';
-    sectionCheckbox.className = 'form-check-input';
-    sectionCheckbox.checked = sectionChores.every(chore => chore.completed);
-    
-    const sectionTitle = document.createElement('h5');
-    sectionTitle.className = 'mb-0 flex-grow-1';
-    sectionTitle.textContent = sectionName;
-    
-    sectionHeader.appendChild(sectionCheckbox);
-    sectionHeader.appendChild(sectionTitle);
-    sectionDiv.appendChild(sectionHeader);
-    
-    // Chores container
+    sectionHeader.innerHTML = `
+        <input type="checkbox" class="form-check-input" ${sectionChores.every(chore => chore.completed) ? 'checked' : ''}>
+        <h5 class="mb-0 flex-grow-1">${sectionName}</h5>
+    `;
+
     const choresContainer = document.createElement('div');
     choresContainer.className = 'card-body';
-    
+
     // Sort chores by order
     sectionChores.sort((a, b) => a.order - b.order);
-    
-    console.log('Sorted chores:', sectionChores);
-    
-    // Add each chore
-    sectionChores.forEach(chore => {
-        console.log('Rendering chore:', chore);
-        const choreDiv = document.createElement('div');
-        choreDiv.className = 'chore-item mb-2';
-        if (chore.completed) {
-            choreDiv.classList.add('completed');
-        }
-        
-        // Checkbox and label container
-        const checkboxContainer = document.createElement('div');
-        checkboxContainer.className = 'd-flex align-items-start gap-2';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'form-check-input mt-1';
-        checkbox.id = `chore-${chore.id}`;
-        checkbox.checked = chore.completed;
-        checkbox.dataset.choreId = chore.id;
-        
-        const label = document.createElement('label');
-        label.className = 'form-check-label flex-grow-1';
-        label.htmlFor = `chore-${chore.id}`;
-        label.textContent = chore.description;
-        
-        checkboxContainer.appendChild(checkbox);
-        checkboxContainer.appendChild(label);
-        choreDiv.appendChild(checkboxContainer);
-        
-        // Add completion info if completed
-        if (chore.completed && chore.completed_by) {
-            const completionInfo = document.createElement('div');
-            completionInfo.className = 'completion-info text-muted ms-4';
-            completionInfo.innerHTML = `
-                <small>Completed by ${chore.completed_by}</small>
-                ${chore.comment ? `<br><small>Comment: ${chore.comment}</small>` : ''}
-            `;
-            choreDiv.appendChild(completionInfo);
-        }
-        // Add comment input if not completed
-        else if (!chore.completed) {
-            const commentDiv = document.createElement('div');
-            commentDiv.className = 'chore-comment ms-4 mt-1';
-            
-            const commentInput = document.createElement('input');
-            commentInput.type = 'text';
-            commentInput.className = 'form-control form-control-sm';
-            commentInput.placeholder = 'Add a comment...';
-            commentInput.value = chore.comment || '';
-            
-            commentDiv.appendChild(commentInput);
-            choreDiv.appendChild(commentDiv);
-        }
-        
-        choresContainer.appendChild(choreDiv);
-        
-        // Add checkbox event listener
-        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox, sectionName));
+
+    // Create chores HTML in a single operation
+    const choresHTML = sectionChores.map(chore => `
+        <div class="chore-item mb-2 ${chore.completed ? 'completed' : ''}">
+            <div class="d-flex align-items-start gap-2">
+                <input type="checkbox" class="form-check-input mt-1" id="chore-${chore.id}"
+                       ${chore.completed ? 'checked' : ''} data-chore-id="${chore.id}">
+                <label class="form-check-label flex-grow-1" for="chore-${chore.id}">
+                    ${chore.description}
+                </label>
+            </div>
+            ${chore.completed && chore.completed_by ? `
+                <div class="completion-info text-muted ms-4">
+                    <small>Completed by ${chore.completed_by}</small>
+                    ${chore.comment ? `<br><small>Comment: ${chore.comment}</small>` : ''}
+                </div>
+            ` : !chore.completed ? `
+                <div class="chore-comment ms-4 mt-1">
+                    <input type="text" class="form-control form-control-sm" 
+                           placeholder="Add a comment..." value="${chore.comment || ''}">
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+
+    choresContainer.innerHTML = choresHTML;
+
+    // Add event listeners
+    const checkboxes = choresContainer.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => 
+            handleChoreCompletion(parseInt(checkbox.dataset.choreId), checkbox, sectionName)
+        );
     });
-    
+
+    sectionDiv.appendChild(sectionHeader);
     sectionDiv.appendChild(choresContainer);
-    
+
     // Add section checkbox event listener
-    const choreCheckboxes = choresContainer.querySelectorAll('input[type="checkbox"]');
-    sectionCheckbox.addEventListener('change', () => handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes));
-    
-    console.log('Section rendered:', sectionName);
-    
-    // Add to the main container
-    choreContainer.appendChild(sectionDiv);
+    const sectionCheckbox = sectionHeader.querySelector('input[type="checkbox"]');
+    sectionCheckbox.addEventListener('change', () => 
+        handleSectionCheckboxChange(sectionCheckbox, checkboxes)
+    );
+
+    return sectionDiv;
 }
 
 async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
@@ -588,127 +724,6 @@ function updateSectionCheckbox(sectionName) {
 
     sectionCheckbox.checked = allChecked;
     sectionCheckbox.indeterminate = someChecked && !allChecked;
-}
-
-async function processChoreUpdateQueue() {
-    if (isProcessingQueue || choreUpdateQueue.length === 0) return;
-    
-    isProcessingQueue = true;
-    
-    while (choreUpdateQueue.length > 0) {
-        const { choreId, checkbox } = choreUpdateQueue.shift();
-        try {
-            const response = await fetch('/api/chore_completion', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chore_id: choreId,
-                    staff_name: staffSelect.value,
-                    completed: checkbox.checked
-                })
-            });
-
-            if (!response.ok) throw new Error('Failed to update chore status');
-            
-            const chore = currentChores.find(c => c.id === choreId);
-            chore.completed = checkbox.checked;
-            
-            // Add a small delay between requests
-            await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (error) {
-            console.error('Error updating chore:', error);
-            checkbox.checked = !checkbox.checked; // Revert the checkbox
-            alert('Failed to update chore. Please try again.');
-        }
-    }
-    
-    isProcessingQueue = false;
-}
-
-async function handleChoreCompletion(choreId, checkbox, sectionName) {
-    try {
-        console.log('Handling chore completion:', {
-            choreId,
-            checked: checkbox.checked,
-            staffName: staffSelect.value,
-            sectionName
-        });
-
-        if (!staffSelect.value) {
-            console.error('No staff member selected');
-            checkbox.checked = !checkbox.checked;
-            alert('Please select a staff member first.');
-            return;
-        }
-
-        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                staff_name: staffSelect.value,
-                completed: checkbox.checked
-            })
-        });
-
-        console.log('Server response:', response.status);
-        const responseData = await response.json().catch(() => null);
-        console.log('Response data:', responseData);
-
-        if (!response.ok) {
-            console.error('Server error:', responseData);
-            throw new Error(responseData?.detail || 'Failed to update chore status');
-        }
-        
-        // Update the chore in currentChores
-        const chore = currentChores.find(c => c.id === choreId);
-        if (chore) {
-            chore.completed = checkbox.checked;
-            chore.completed_by = staffSelect.value;
-            chore.completed_at = new Date().toISOString();
-            
-            // Check if all chores in the section are completed
-            const sectionChores = currentChores.filter(c => c.section === sectionName);
-            const allSectionChoresCompleted = sectionChores.every(c => c.completed);
-            
-            // Update section checkbox
-            const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
-            sectionCheckboxes.forEach(cb => {
-                if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
-                    cb.checked = allSectionChoresCompleted;
-                }
-            });
-            
-            // Check if all chores are completed
-            const allChoresCompleted = currentChores.every(c => c.completed);
-            if (allChoresCompleted) {
-                successSection.classList.remove('d-none');
-                showConfetti();
-            } else {
-                successSection.classList.add('d-none');
-            }
-            
-            // Update progress
-            updateProgressIndicator();
-        }
-        
-        // Add completion animation
-        if (checkbox.checked) {
-            const checkmark = document.createElement('div');
-            checkmark.className = 'floating-checkmark';
-            checkmark.textContent = '✓';
-            checkbox.parentElement.appendChild(checkmark);
-            
-            setTimeout(() => checkmark.remove(), 1000);
-        }
-    } catch (error) {
-        console.error('Error updating chore:', error);
-        checkbox.checked = !checkbox.checked; // Revert the checkbox
-        alert(error.message || 'Failed to update chore. Please try again.');
-    }
 }
 
 async function handleChoreComment(choreId, comment) {

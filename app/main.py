@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text, and_, func
 from typing import List, Optional
 from pydantic import BaseModel
@@ -234,72 +234,64 @@ def get_last_reset_time(checklist_name: str, db: Session) -> Optional[datetime]:
 
 @app.get("/api/checklists/{checklist_name}/chores")
 def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
-    """Get all chores for a checklist."""
+    """Get all chores for a checklist with their completion status."""
     try:
-        logger.info(f"Loading chores for checklist: {checklist_name}")
+        logger.info(f"Getting chores for checklist: {checklist_name}")
         
-        # Get the checklist
-        checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
-        if not checklist:
-            logger.error(f"Checklist {checklist_name} not found")
+        # Get checklist and sections in a single query with eager loading
+        checklist_with_sections = (
+            db.query(Checklist)
+            .filter(Checklist.name == checklist_name)
+            .options(joinedload(Checklist.sections))
+            .first()
+        )
+        
+        if not checklist_with_sections:
+            logger.error(f"Checklist not found: {checklist_name}")
             raise HTTPException(status_code=404, detail="Checklist not found")
-
-        logger.info(f"Found checklist: {checklist.name}")
-
-        # Get all sections and their chores in a single query
-        sections = (
-            db.query(Section)
-            .filter(Section.checklist_id == checklist.id)
-            .order_by(Section.order)
+        
+        sections = sorted(checklist_with_sections.sections, key=lambda s: s.order or 0)
+        logger.info(f"Found {len(sections)} sections")
+        
+        # Get all chores and their latest completions in a single query
+        chores_with_completions = (
+            db.query(Chore, ChoreCompletion)
+            .outerjoin(
+                ChoreCompletion,
+                and_(
+                    ChoreCompletion.chore_id == Chore.id,
+                    ChoreCompletion.completed == True
+                )
+            )
+            .filter(Chore.section_id.in_([s.id for s in sections]))
+            .order_by(Chore.order)
             .all()
         )
         
-        logger.info(f"Found {len(sections)} sections")
-
-        # Get all chores and their latest completions in a single query
-        try:
-            chores_with_completions = (
-                db.query(Chore)
-                .filter(Chore.section_id.in_([s.id for s in sections]))
-                .order_by(Chore.order)
-                .all()
-            )
-            
-            logger.info(f"Found {len(chores_with_completions)} chores")
-            
-            # Process the results
-            chores = []
-            for chore in chores_with_completions:
-                section = next(s for s in sections if s.id == chore.section_id)
-                
-                # Get the latest completion
-                completion = db.query(ChoreCompletion).filter(
-                    ChoreCompletion.chore_id == chore.id,
-                    ChoreCompletion.completed == True
-                ).order_by(ChoreCompletion.completed_at.desc()).first()
-                
-                chore_data = {
-                    "id": chore.id,
-                    "description": chore.description,
-                    "order": chore.order,
-                    "section": section.name,
-                    "section_id": section.id,
-                    "completed": bool(completion),
-                    "completed_by": completion.staff_name if completion else None,
-                    "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
-                    "comment": completion.comment if completion else None
-                }
-                chores.append(chore_data)
-            
-            logger.info(f"Successfully processed {len(chores)} chores")
-            return chores
-            
-        except Exception as e:
-            logger.error(f"Error processing chores: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-            
+        logger.info(f"Found {len(chores_with_completions)} chores")
+        
+        # Process the results
+        chores = []
+        for chore, completion in chores_with_completions:
+            section = next(s for s in sections if s.id == chore.section_id)
+            chore_data = {
+                "id": chore.id,
+                "description": chore.description,
+                "order": chore.order,
+                "section": section.name,
+                "section_id": section.id,
+                "completed": bool(completion),
+                "completed_by": completion.staff_name if completion else None,
+                "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
+                "comment": completion.comment if completion else None
+            }
+            chores.append(chore_data)
+        
+        logger.info(f"Successfully processed {len(chores)} chores")
+        return chores
+        
     except Exception as e:
-        logger.error(f"Error loading checklist {checklist_name}: {str(e)}", exc_info=True)
+        logger.error(f"Error processing chores: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_completion")
