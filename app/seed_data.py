@@ -77,6 +77,79 @@ def seed_database(db: Session):
         db.add_all(kitchen_closing_sections)
         db.commit()
 
+        # Create chores for opening checklist
+        opening_chores = [
+            # Till section
+            Chore(checklist_id=opening.id, section_id=opening_sections[0].id, description="Count float", order=1),
+            Chore(checklist_id=opening.id, section_id=opening_sections[0].id, description="Check card machine", order=2),
+            Chore(checklist_id=opening.id, section_id=opening_sections[0].id, description="Check till roll", order=3),
+
+            # Floor section
+            Chore(checklist_id=opening.id, section_id=opening_sections[1].id, description="Check tables are clean", order=1),
+            Chore(checklist_id=opening.id, section_id=opening_sections[1].id, description="Check chairs are clean", order=2),
+            Chore(checklist_id=opening.id, section_id=opening_sections[1].id, description="Check floor is clean", order=3),
+            Chore(checklist_id=opening.id, section_id=opening_sections[1].id, description="Check toilets are clean", order=4),
+
+            # Prep section
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Cut lemons", order=1),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Cut limes", order=2),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Cut oranges", order=3),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check garnish tray", order=4),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check straws", order=5),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check napkins", order=6),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check coasters", order=7),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check ice", order=8),
+            Chore(checklist_id=opening.id, section_id=opening_sections[2].id, description="Check menus", order=9),
+
+            # Bar section
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check beer lines", order=1),
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check spirit bottles", order=2),
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check wine bottles", order=3),
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check fridges", order=4),
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check glass washer", order=5),
+            Chore(checklist_id=opening.id, section_id=opening_sections[3].id, description="Check glasses are clean", order=6),
+
+            # Kitchen section
+            Chore(checklist_id=opening.id, section_id=opening_sections[4].id, description="Check fridge temperatures", order=1),
+            Chore(checklist_id=opening.id, section_id=opening_sections[4].id, description="Check freezer temperatures", order=2),
+            Chore(checklist_id=opening.id, section_id=opening_sections[4].id, description="Check food prep area", order=3),
+            Chore(checklist_id=opening.id, section_id=opening_sections[4].id, description="Check cleaning supplies", order=4)
+        ]
+        db.add_all(opening_chores)
+        db.commit()
+
+        # Create chores for closing checklist
+        closing_chores = [
+            # Till section
+            Chore(checklist_id=closing.id, section_id=closing_sections[0].id, description="Count till", order=1),
+            Chore(checklist_id=closing.id, section_id=closing_sections[0].id, description="Print Z report", order=2),
+            Chore(checklist_id=closing.id, section_id=closing_sections[0].id, description="Lock till", order=3),
+
+            # Floor section
+            Chore(checklist_id=closing.id, section_id=closing_sections[1].id, description="Clean tables", order=1),
+            Chore(checklist_id=closing.id, section_id=closing_sections[1].id, description="Clean chairs", order=2),
+            Chore(checklist_id=closing.id, section_id=closing_sections[1].id, description="Sweep floor", order=3),
+            Chore(checklist_id=closing.id, section_id=closing_sections[1].id, description="Mop floor", order=4),
+            Chore(checklist_id=closing.id, section_id=closing_sections[1].id, description="Clean toilets", order=5),
+
+            # Bar section
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean beer lines", order=1),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean spirit bottles", order=2),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean wine bottles", order=3),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean fridges", order=4),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean glass washer", order=5),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Clean glasses", order=6),
+            Chore(checklist_id=closing.id, section_id=closing_sections[2].id, description="Empty ice well", order=7),
+
+            # Kitchen section
+            Chore(checklist_id=closing.id, section_id=closing_sections[3].id, description="Clean food prep area", order=1),
+            Chore(checklist_id=closing.id, section_id=closing_sections[3].id, description="Clean surfaces", order=2),
+            Chore(checklist_id=closing.id, section_id=closing_sections[3].id, description="Empty bins", order=3),
+            Chore(checklist_id=closing.id, section_id=closing_sections[3].id, description="Check fridge temperatures", order=4)
+        ]
+        db.add_all(closing_chores)
+        db.commit()
+
         # Create chores for weekly checklist
         weekly_chores = [
             # Bar Deep Clean section
