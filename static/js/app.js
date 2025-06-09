@@ -665,6 +665,23 @@ async function submitChecklist() {
 
         if (!response.ok) throw new Error('Failed to submit checklist');
         
+        // Get unique contributors
+        const contributors = [...new Set(currentChores
+            .filter(chore => chore.completed_by)
+            .map(chore => chore.completed_by)
+        )];
+        
+        // Format contributors list
+        let contributorsText = '';
+        if (contributors.length === 1) {
+            contributorsText = contributors[0];
+        } else if (contributors.length === 2) {
+            contributorsText = `${contributors[0]} and ${contributors[1]}`;
+        } else if (contributors.length > 2) {
+            const lastContributor = contributors.pop();
+            contributorsText = `${contributors.join(', ')}, and ${lastContributor}`;
+        }
+        
         // Show success message with confetti
         showConfetti();
         
@@ -672,24 +689,33 @@ async function submitChecklist() {
         const successMessage = document.createElement('div');
         successMessage.className = 'alert alert-success text-center mt-4';
         successMessage.innerHTML = `
-            <h4 class="alert-heading">🎉 Amazing job, ${staffName}! 🎉</h4>
-            <p class="mb-0">You've completed the ${checklistSelect.options[checklistSelect.selectedIndex].text}!</p>
+            <h4 class="alert-heading">🎉 Amazing job! 🎉</h4>
+            <p class="mb-0">The ${checklistSelect.options[checklistSelect.selectedIndex].text} has been completed by ${contributorsText}!</p>
         `;
         
-        // Replace the success section with this message
+        // Replace the success section content and remove submit button
         successSection.innerHTML = '';
         successSection.appendChild(successMessage);
         
-        // Disable all checkboxes and the submit button
+        // Disable all checkboxes
         document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             cb.disabled = true;
         });
-        submitChecklistBtn.disabled = true;
         
-        // Reload the page after 3 seconds
+        // Disable the checklist select and staff select
+        checklistSelect.disabled = true;
+        staffSelect.disabled = true;
+        
+        // Remove the reset button since we're in a completed state
+        const resetBtn = document.getElementById('resetChecklistBtn');
+        if (resetBtn) {
+            resetBtn.style.display = 'none';
+        }
+        
+        // Reload the page after 5 seconds
         setTimeout(() => {
             location.reload();
-        }, 3000);
+        }, 5000);
         
     } catch (error) {
         console.error('Error submitting checklist:', error);
@@ -871,54 +897,6 @@ async function populateChecklistDropdown() {
             console.error('Could not show error to user - checklistSelect or its parent is null');
             document.querySelector('.container').prepend(errorDiv);
         }
-    }
-}
-
-async function resetChecklist() {
-    if (!confirm('Are you sure you want to reset this checklist? This will clear all completion statuses.')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(window.location.origin + `/api/checklists/${currentChecklist}/reset`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                staff_name: staffSelect.value
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to reset checklist');
-        }
-
-        // Clear all checkboxes
-        document.querySelectorAll('.chore-checkbox').forEach(checkbox => {
-            checkbox.checked = false;
-        });
-
-        // Remove completed class from all chore items
-        document.querySelectorAll('.chore-item').forEach(item => {
-            item.classList.remove('completed');
-        });
-
-        // Remove completed class from all section headers
-        document.querySelectorAll('.section-header').forEach(header => {
-            header.classList.remove('completed');
-        });
-
-        // Reset the progress indicator
-        updateProgressIndicator(0, 0);
-
-        // Reload the checklist to ensure everything is in sync
-        await loadChecklist(currentChecklist);
-
-        alert('Checklist has been reset successfully!');
-    } catch (error) {
-        console.error('Error resetting checklist:', error);
-        alert('Failed to reset checklist. Please try again.');
     }
 }
 
