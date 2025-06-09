@@ -236,19 +236,19 @@ async function loadChecklist(checklistId) {
     }
 
     try {
-        const response = await fetch(`/api/get_checklist/${checklistId}`);
+        const response = await fetch(`/api/checklists/${checklistId}/chores`);
         if (!response.ok) {
             throw new Error('Failed to fetch checklist data');
         }
         
         const data = await response.json();
-        currentChores = data.chores;
+        currentChores = data;
         
         // Clear existing chores
         choreContainer.innerHTML = '';
         
         // Render the chores
-        renderChores(data.chores);
+        renderChores(data);
         
         // Show the container
         choreContainer.style.display = 'block';
@@ -843,8 +843,19 @@ async function populateChecklistDropdown() {
         // Add new options
         checklists.forEach(checklist => {
             const option = document.createElement('option');
-            option.value = checklist.id;
-            option.textContent = checklist.name;
+            option.value = checklist.name;  // Use the name as the value
+            
+            // Format the display name
+            let displayName = checklist.name
+                .split('-')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            
+            if (!displayName.includes('Checklist')) {
+                displayName += ' Checklist';
+            }
+            
+            option.textContent = displayName;
             checklistSelect.appendChild(option);
         });
         
