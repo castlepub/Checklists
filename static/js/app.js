@@ -166,21 +166,33 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (resetChecklistBtn) {
             resetChecklistBtn.addEventListener('click', async () => {
                 const checklistName = checklistSelect.value;
-                if (!checklistName) return;
+                const staffName = staffSelect.value;
                 
-                if (!confirm(`Are you sure you want to reset the ${checklistName} checklist? This will remove all completed tasks and signatures.`)) {
+                if (!checklistName || !staffName) {
+                    alert('Please select both a checklist and your name first.');
+                    return;
+                }
+                
+                if (!confirm(`Are you sure you want to reset the ${checklistName} checklist? This will remove all completed tasks.`)) {
                     return;
                 }
                 
                 try {
                     const response = await fetch(window.location.origin + `/api/reset_checklist/${checklistName}`, {
-                        method: 'POST'
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            staff_name: staffName
+                        })
                     });
                     
                     if (!response.ok) throw new Error('Failed to reset checklist');
                     
-                    // Reload the page to show fresh checklist
-                    location.reload();
+                    // Reload the checklist instead of the whole page
+                    await loadChecklist(checklistName);
+                    
                 } catch (error) {
                     console.error('Error resetting checklist:', error);
                     alert('Failed to reset checklist. Please try again.');
@@ -374,13 +386,12 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
     }
     
     try {
-        const response = await fetch('/api/chore_completion', {
+        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                chore_id: choreId,
                 staff_name: staffName,
                 completed: isChecked
             })
@@ -393,6 +404,25 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         if (chore) {
             chore.completed = isChecked;
             chore.completed_by = isChecked ? staffName : null;
+            chore.completed_at = isChecked ? new Date().toISOString() : null;
+            
+            // Update the UI
+            const choreDiv = checkbox.closest('.chore-item');
+            if (choreDiv) {
+                if (isChecked) {
+                    choreDiv.classList.add('completed');
+                    // Add completion info
+                    const completionInfo = document.createElement('div');
+                    completionInfo.className = 'completion-info text-muted ms-4';
+                    completionInfo.innerHTML = `<small>Completed by ${staffName}</small>`;
+                    choreDiv.appendChild(completionInfo);
+                } else {
+                    choreDiv.classList.remove('completed');
+                    // Remove completion info
+                    const completionInfo = choreDiv.querySelector('.completion-info');
+                    if (completionInfo) completionInfo.remove();
+                }
+            }
         }
         
         // Update progress
