@@ -276,6 +276,8 @@ async function loadChecklist(checklistId) {
     
     try {
         console.log('Loading checklist:', checklistId);
+        console.log('Fetching from:', window.location.origin + `/api/checklists/${checklistId}/chores`);
+        
         const response = await fetch(window.location.origin + `/api/checklists/${checklistId}/chores`);
         if (!response.ok) {
             console.error('Failed to load checklist:', response.status, response.statusText);
@@ -297,23 +299,28 @@ async function loadChecklist(checklistId) {
         
         // Group chores by section
         const sections = {};
-        data.forEach(chore => {
-            if (!sections[chore.section]) sections[chore.section] = [];
-            sections[chore.section].push(chore);
-        });
-        
-        console.log('Grouped sections:', sections);
-        
-        // Render each section
-        Object.entries(sections).forEach(([sectionName, sectionChores]) => {
-            renderSection(sectionName, sectionChores);
-        });
-        
-        // Show the container
-        choreContainer.classList.remove('d-none');
-        
-        // Update progress
-        updateProgressIndicator();
+        if (Array.isArray(data)) {
+            data.forEach(chore => {
+                if (!sections[chore.section]) sections[chore.section] = [];
+                sections[chore.section].push(chore);
+            });
+            
+            console.log('Grouped sections:', sections);
+            
+            // Render each section
+            Object.entries(sections).forEach(([sectionName, sectionChores]) => {
+                console.log('Rendering section:', sectionName, 'with chores:', sectionChores);
+                renderSection(sectionName, sectionChores);
+            });
+            
+            // Show the container
+            choreContainer.classList.remove('d-none');
+            
+            // Update progress
+            updateProgressIndicator();
+        } else {
+            console.error('Received data is not an array:', data);
+        }
     } catch (error) {
         console.error('Error loading checklist:', error);
         alert('Failed to load checklist. Please try again.');
@@ -352,7 +359,8 @@ function renderChores(chores) {
 }
 
 function renderSection(sectionName, sectionChores) {
-    console.log('Rendering section:', sectionName, 'with chores:', sectionChores);
+    console.log('Starting to render section:', sectionName);
+    console.log('Section chores:', sectionChores);
     
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section mb-4';
@@ -382,8 +390,11 @@ function renderSection(sectionName, sectionChores) {
     // Sort chores by order
     sectionChores.sort((a, b) => a.order - b.order);
     
+    console.log('Sorted chores:', sectionChores);
+    
     // Add each chore
     sectionChores.forEach(chore => {
+        console.log('Rendering chore:', chore);
         const choreDiv = document.createElement('div');
         choreDiv.className = 'chore-item mb-2';
         if (chore.completed) {
@@ -446,6 +457,8 @@ function renderSection(sectionName, sectionChores) {
     // Add section checkbox event listener
     const choreCheckboxes = choresContainer.querySelectorAll('input[type="checkbox"]');
     sectionCheckbox.addEventListener('change', () => handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes));
+    
+    console.log('Section rendered:', sectionName);
     
     // Add to the main container
     choreContainer.appendChild(sectionDiv);
@@ -922,11 +935,15 @@ async function completeSection(sectionName) {
 // Populate checklist dropdown
 async function populateChecklistDropdown() {
     try {
+        console.log('Starting to populate dropdowns...');
+        
         // Populate staff select first
         const staffNames = [
             "Nora", "Josh", "Vaile", "Melissa", "Paddy",
             "Pero", "Guy", "Dean", "Bethany", "Henry"
         ];
+        
+        console.log('Staff names to add:', staffNames);
         
         // Clear existing options except the first one
         while (staffSelect.options.length > 1) {
@@ -941,9 +958,14 @@ async function populateChecklistDropdown() {
             staffSelect.appendChild(option);
         });
 
+        console.log('Staff dropdown populated');
+        console.log('Fetching checklists from:', window.location.origin + '/api/checklists');
+
         // Then populate checklists
         const response = await fetch(window.location.origin + '/api/checklists');
         const checklists = await response.json();
+        
+        console.log('Received checklists:', checklists);
         
         // Clear existing options except the first one
         while (checklistSelect.options.length > 1) {
@@ -952,11 +974,14 @@ async function populateChecklistDropdown() {
         
         // Add new options
         checklists.forEach(checklist => {
+            console.log('Adding checklist:', checklist);
             const option = document.createElement('option');
             option.value = checklist.name;
             option.textContent = checklist.description || checklist.name;
             checklistSelect.appendChild(option);
         });
+        
+        console.log('Checklist dropdown populated');
     } catch (error) {
         console.error('Error loading checklists:', error);
         alert('Failed to load checklists. Please refresh the page.');
