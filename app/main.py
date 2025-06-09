@@ -211,7 +211,6 @@ class ChoreCommentRequest(BaseModel):
 class ChecklistSubmission(BaseModel):
     checklist_id: str
     staff_name: str
-    signature_data: str
 
 class TelegramUpdate(BaseModel):
     """Simplified Telegram Update model"""
@@ -718,6 +717,28 @@ async def debug_db(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in debug endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/debug/reset-db")
+async def reset_db_endpoint(db: Session = Depends(get_db)):
+    """Temporary endpoint to reset and reseed the database."""
+    try:
+        from app.models import Base
+        from app.database import engine
+        from app.seed_data import seed_database
+        
+        # Drop all tables
+        Base.metadata.drop_all(bind=engine)
+        
+        # Recreate tables
+        Base.metadata.create_all(bind=engine)
+        
+        # Reseed database
+        seed_database(db)
+        
+        return {"status": "success", "message": "Database reset and reseeded successfully"}
+    except Exception as e:
+        logger.error(f"Error resetting database: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reset database: {str(e)}")
 
 def init_db():
     """Initialize the database."""

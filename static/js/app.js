@@ -1,5 +1,4 @@
 // Global variables
-let signaturePad;
 let currentChores = [];
 let choreUpdateQueue = [];
 let isProcessingQueue = false;
@@ -11,8 +10,7 @@ let completedCount = 0;
 let checklistSelect;
 let staffSelect;
 let choresContainer;
-let signatureSection;
-let clearSignatureBtn;
+let successSection;
 let submitChecklistBtn;
 let resetChecklistBtn;
 
@@ -176,10 +174,8 @@ async function initializeApp() {
         console.log('staffSelect:', staffSelect);
         choresContainer = document.getElementById('choresContainer');
         console.log('choresContainer:', choresContainer);
-        signatureSection = document.getElementById('signatureSection');
-        console.log('signatureSection:', signatureSection);
-        clearSignatureBtn = document.getElementById('clearSignatureBtn');
-        console.log('clearSignatureBtn:', clearSignatureBtn);
+        successSection = document.getElementById('successSection');
+        console.log('successSection:', successSection);
         submitChecklistBtn = document.getElementById('submitChecklistBtn');
         console.log('submitChecklistBtn:', submitChecklistBtn);
         resetChecklistBtn = document.getElementById('resetChecklistBtn');
@@ -189,17 +185,9 @@ async function initializeApp() {
         if (!checklistSelect) throw new Error('Checklist select element not found');
         if (!staffSelect) throw new Error('Staff select element not found');
         if (!choresContainer) throw new Error('Chores container element not found');
-        if (!signatureSection) throw new Error('Signature section element not found');
-        if (!clearSignatureBtn) throw new Error('Clear signature button not found');
+        if (!successSection) throw new Error('Success section element not found');
         if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
         if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
-        
-        // Initialize signature pad
-        console.log('Initializing signature pad...');
-        const canvas = document.getElementById('signaturePad');
-        if (!canvas) throw new Error('Signature pad canvas not found');
-        signaturePad = new SignaturePad(canvas);
-        console.log('Signature pad initialized');
         
         console.log('Populating checklist dropdown...');
         await populateChecklistDropdown();
@@ -209,7 +197,6 @@ async function initializeApp() {
         console.log('Adding event listeners...');
         checklistSelect.addEventListener('change', loadChecklist);
         staffSelect.addEventListener('change', updateUI);
-        clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
         submitChecklistBtn.addEventListener('click', submitChecklist);
         resetChecklistBtn.addEventListener('click', resetChecklist);
         console.log('Event listeners added');
@@ -241,34 +228,25 @@ function updateUI() {
     const checklistSelected = checklistSelect.value !== '';
     const staffSelected = staffSelect.value !== '';
     
-    if (!staffSelected) {
-        // Show message to select staff member
+    // Remove any existing alert
+    const existingAlert = document.querySelector('.alert-info');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+    
+    if (!staffSelected && !checklistSelected) {
+        // Show message to select staff member only if neither staff nor checklist is selected
         const alertDiv = document.createElement('div');
         alertDiv.className = 'alert alert-info mt-3';
         alertDiv.textContent = 'Please select your name from the staff list to view and complete checklists.';
-        
-        // Remove any existing alert
-        const existingAlert = document.querySelector('.alert-info');
-        if (existingAlert) {
-            existingAlert.remove();
-        }
-        
-        // Insert after the checklist select
         checklistSelect.parentNode.insertBefore(alertDiv, checklistSelect.nextSibling);
-        
-        // Hide chores and signature
-        choresContainer.classList.add('d-none');
-        signatureSection.classList.add('d-none');
-    } else if (checklistSelected && staffSelected) {
-        // Remove the alert if it exists
-        const existingAlert = document.querySelector('.alert-info');
-        if (existingAlert) {
-            existingAlert.remove();
-        }
+    }
+    
+    if (checklistSelected && staffSelected) {
         loadChecklist();
     } else {
         choresContainer.classList.add('d-none');
-        signatureSection.classList.add('d-none');
+        successSection.classList.add('d-none');
     }
 }
 
@@ -292,7 +270,6 @@ async function loadChecklist() {
         renderChores();
         choresContainer.classList.remove('d-none');
         updateSignatureSection();
-        resizeSignaturePad();
         
         // Update task counter
         const totalChores = currentChores.length;
@@ -302,7 +279,7 @@ async function loadChecklist() {
         console.error('Error loading checklist:', error);
         alert('Failed to load checklist. Please try again.');
         choresContainer.classList.add('d-none');
-        signatureSection.classList.add('d-none');
+        successSection.classList.add('d-none');
     }
 }
 
@@ -558,7 +535,6 @@ async function processChoreUpdateQueue() {
             
             const chore = currentChores.find(c => c.id === choreId);
             chore.completed = checkbox.checked;
-            updateSignatureSection();
             
             // Add a small delay between requests
             await new Promise(resolve => setTimeout(resolve, 300));
@@ -619,28 +595,24 @@ async function handleChoreComment(choreId, comment) {
 }
 
 function updateSignatureSection() {
-    if (!Array.isArray(currentChores)) {
-        console.error('currentChores is not an array:', currentChores);
-        return;
-    }
-    
-    const allCompleted = currentChores.every(chore => chore.completed);
-    signatureSection.classList.toggle('d-none', !allCompleted);
-    
-    if (allCompleted) {
-        signaturePad.clear();
+    const allChoresCompleted = currentChores.every(chore => chore.completed);
+    if (allChoresCompleted) {
+        successSection.classList.remove('d-none');
+        // Show confetti animation
+        showConfetti();
+    } else {
+        successSection.classList.add('d-none');
     }
 }
 
-async function submitChecklist() {
-    if (!signaturePad || signaturePad.isEmpty()) {
-        alert('Please provide your signature before submitting.');
-        return;
-    }
+function showConfetti() {
+    // Add confetti animation here if you want
+    console.log('Showing completion celebration!');
+}
 
+async function submitChecklist() {
     const staffName = staffSelect.value;
     const checklistId = checklistSelect.value;
-    const signatureData = signaturePad.toDataURL();
 
     try {
         const response = await fetch('/api/submit_checklist', {
@@ -650,13 +622,13 @@ async function submitChecklist() {
             },
             body: JSON.stringify({
                 checklist_id: checklistId,
-                staff_name: staffName,
-                signature_data: signatureData
+                staff_name: staffName
             })
         });
 
         if (!response.ok) throw new Error('Failed to submit checklist');
         
+        // Show success message and reload
         alert('Checklist submitted successfully!');
         location.reload();
     } catch (error) {
