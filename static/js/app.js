@@ -177,6 +177,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!successSection) throw new Error('Success section element not found');
         if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
         
+        console.log('Populating staff dropdown...');
+        await populateStaffDropdown();
+        console.log('Staff dropdown populated');
+        
         console.log('Populating checklist dropdown...');
         await populateChecklistDropdown();
         console.log('Checklist dropdown populated');
@@ -896,21 +900,19 @@ function showConfetti() {
 }
 
 async function submitChecklist() {
-    const staffName = staffSelect.value;
-    const checklistId = checklistSelect.value;
-
-    // Check if all chores are completed
-    const allCompleted = currentChores.every(chore => chore.completed);
-    if (!allCompleted) {
-        alert('Please complete all tasks before submitting the checklist.');
-        return;
-    }
-
     try {
+        const checklistId = checklistSelect.value;
+        const staffName = staffSelect.value;
+        
+        if (!checklistId || !staffName) {
+            alert('Please select both a checklist and your name before submitting.');
+            return;
+        }
+
         const response = await fetch('/api/submit_checklist', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 checklist_id: checklistId,
@@ -918,54 +920,15 @@ async function submitChecklist() {
             })
         });
 
-        if (!response.ok) throw new Error('Failed to submit checklist');
-        
-        // Get unique contributors
-        const contributors = [...new Set(currentChores
-            .filter(chore => chore.completed_by)
-            .map(chore => chore.completed_by)
-        )];
-        
-        // Format contributors list
-        let contributorsText = '';
-        if (contributors.length === 1) {
-            contributorsText = contributors[0];
-        } else if (contributors.length === 2) {
-            contributorsText = `${contributors[0]} and ${contributors[1]}`;
-        } else if (contributors.length > 2) {
-            const lastContributor = contributors.pop();
-            contributorsText = `${contributors.join(', ')}, and ${lastContributor}`;
+        if (!response.ok) {
+            throw new Error('Failed to submit checklist');
         }
+
+        // Show success message
+        alert('Checklist submitted successfully!');
         
-        // Show success message with confetti
-        showConfetti();
-        
-        // Create a success message that will stay visible
-        const successMessage = document.createElement('div');
-        successMessage.className = 'alert alert-success text-center mt-4';
-        successMessage.innerHTML = `
-            <h4 class="alert-heading">🎉 Amazing job! 🎉</h4>
-            <p class="mb-0">The ${checklistSelect.options[checklistSelect.selectedIndex].text} has been completed by ${contributorsText}!</p>
-        `;
-        
-        // Replace the success section content and remove submit button
-        successSection.innerHTML = '';
-        successSection.appendChild(successMessage);
-        
-        // Disable all checkboxes
-        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.disabled = true;
-        });
-        
-        // Disable the checklist select and staff select
-        checklistSelect.disabled = true;
-        staffSelect.disabled = true;
-        
-        // Reload the page after 5 seconds
-        setTimeout(() => {
-            location.reload();
-        }, 5000);
-        
+        // Reload the page to show fresh checklist
+        location.reload();
     } catch (error) {
         console.error('Error submitting checklist:', error);
         alert('Failed to submit checklist. Please try again.');
@@ -1012,6 +975,13 @@ function updateProgress() {
         completedChores.add(completedCount);
         const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
         showAchievement("💡", "Fun Fact!", randomFact, "fun-fact");
+    }
+
+    // Show success section if all tasks are completed
+    if (completedTasks === totalTasks && totalTasks > 0) {
+        successSection.classList.remove('d-none');
+    } else {
+        successSection.classList.add('d-none');
     }
 }
 
@@ -1254,4 +1224,24 @@ function handleCheckboxChange(event) {
     
     // Add this at the end of the function
     updateProgress();
+}
+
+// Add the missing populateStaffDropdown function
+async function populateStaffDropdown() {
+    try {
+        const response = await fetch('/api/staff');
+        if (!response.ok) throw new Error('Failed to fetch staff list');
+        const staff = await response.json();
+        
+        staffSelect.innerHTML = '<option value="">Choose your name...</option>';
+        staff.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            staffSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error populating staff dropdown:', error);
+        throw new Error('Failed to load staff list');
+    }
 } 
