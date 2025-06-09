@@ -587,22 +587,26 @@ def send_telegram_message(message: str):
 
 @app.post("/api/chores/{chore_id}/toggle")
 async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db)):
-    chore = db.query(Chore).filter(Chore.id == chore_id).first()
-    if not chore:
-        raise HTTPException(status_code=404, detail="Chore not found")
+    try:
+        chore = db.query(Chore).filter(Chore.id == chore_id).first()
+        if not chore:
+            raise HTTPException(status_code=404, detail="Chore not found")
 
-    # Toggle completion status
-    chore.completed = not chore.completed
-    chore.completed_by = data.get("staff_name") if chore.completed else None
-    chore.completed_at = datetime.utcnow() if chore.completed else None
+        # Use the completed value from the request
+        chore.completed = data.get("completed", not chore.completed)
+        chore.completed_by = data.get("staff_name") if chore.completed else None
+        chore.completed_at = datetime.utcnow() if chore.completed else None
 
-    # Send Telegram notification
-    if chore.completed:
-        message = f"✅ <b>{data.get('staff_name')}</b> completed: {chore.description}"
-        send_telegram_message(message)
+        # Send Telegram notification
+        if chore.completed:
+            message = f"✅ <b>{data.get('staff_name')}</b> completed: {chore.description}"
+            send_telegram_message(message)
 
-    db.commit()
-    return {"completed": chore.completed}
+        db.commit()
+        return {"completed": chore.completed}
+    except Exception as e:
+        logger.error(f"Error toggling chore: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sections/{section_id}/complete")
 async def complete_section(section_id: int, data: dict, db: Session = Depends(get_db)):
