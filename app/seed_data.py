@@ -19,8 +19,8 @@ def seed_database(db: Session):
     
     try:
         # Create checklists
-        opening = Checklist(name="opening", description="Opening Checklist - Sign your initials when task is completed.")
-        closing = Checklist(name="closing", description="Closing Checklist - Sign your initials when task is completed.")
+        opening = Checklist(name="opening", description="Opening Checklist")
+        closing = Checklist(name="closing", description="Closing Checklist")
         db.add_all([opening, closing])
         db.commit()
 

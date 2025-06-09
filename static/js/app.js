@@ -105,39 +105,18 @@ function showAchievement(title, message, type = 'milestone') {
     }, timeout);
 }
 
-function updateProgressIndicator() {
-    if (!Array.isArray(currentChores) || currentChores.length === 0) return;
-    
-    const total = currentChores.length;
-    const completed = currentChores.filter(chore => chore.completed).length;
-    const progress = (completed / total) * 100;
-    
-    // Update progress display
-    const progressDiv = document.getElementById('progressDisplay');
-    if (progressDiv) {
-        progressDiv.innerHTML = `
-            <div class="progress-display">
-                <div class="progress-emoji">🎯</div>
-                <div class="flex-grow-1">
-                    <div class="progress">
-                        <div class="progress-bar bg-success" 
-                             role="progressbar" 
-                             style="width: ${progress}%" 
-                             aria-valuenow="${progress}" 
-                             aria-valuemin="0" 
-                             aria-valuemax="100">
-                        </div>
-                    </div>
-                    <small class="text-muted">${completed} of ${total} tasks completed (${Math.round(progress)}%)</small>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Check if all tasks are completed
-    if (completed === total) {
+function updateProgress() {
+    const totalTasks = document.querySelectorAll('.chore-item').length;
+    const completedTasks = document.querySelectorAll('.chore-item input[type="checkbox"]:checked').length;
+    const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    document.querySelector('.progress-bar-inner').style.width = `${percentage}%`;
+    document.getElementById('progressText').textContent = `${completedTasks} of ${totalTasks} tasks completed`;
+    document.getElementById('progressPercentage').textContent = `${percentage}%`;
+
+    // Show success section if all tasks are completed
+    if (completedTasks === totalTasks && totalTasks > 0) {
         successSection.classList.remove('d-none');
-        showConfetti();
     } else {
         successSection.classList.add('d-none');
     }
@@ -315,7 +294,7 @@ async function loadChecklist(checklistId) {
             choreContainer.classList.remove('d-none');
             
             // Update progress
-            updateProgressIndicator();
+            updateProgress();
         } else {
             console.error('Received data is not an array:', data);
         }
@@ -353,7 +332,7 @@ function renderChores(chores) {
         choreContainer.appendChild(sectionElement);
     });
     
-    updateProgressIndicator();
+    updateProgress();
 }
 
 // Debounce function
@@ -382,131 +361,50 @@ function throttle(func, limit) {
 }
 
 // Create throttled version of updateProgressIndicator
-const throttledUpdateProgress = throttle(updateProgressIndicator, 100);
+const throttledUpdateProgress = throttle(updateProgress, 100);
 
 async function handleChoreCompletion(choreId, checkbox, sectionName) {
+    const isChecked = checkbox.checked;
+    const staffName = staffSelect.value;
+    
+    if (!staffName) {
+        alert('Please select your name first!');
+        checkbox.checked = !isChecked;
+        return;
+    }
+    
     try {
-        if (!staffSelect.value) {
-            console.error('No staff member selected');
-            checkbox.checked = !checkbox.checked;
-            alert('Please select a staff member first.');
-            return;
-        }
-
-        // Get comment if exists
-        const choreDiv = checkbox.closest('.chore-item');
-        const commentInput = choreDiv ? choreDiv.querySelector('input[type="text"]') : null;
-        const comment = commentInput ? commentInput.value.trim() : '';
-
-        // Optimistic update
-        const chore = currentChores.find(c => c.id === choreId);
-        if (chore) {
-            chore.completed = checkbox.checked;
-            chore.completed_by = staffSelect.value;
-            chore.completed_at = new Date().toISOString();
-            chore.comment = comment;
-        }
-
-        // Add completion animation immediately
-        if (checkbox.checked) {
-            const checkmark = document.createElement('div');
-            checkmark.className = 'floating-checkmark';
-            checkmark.textContent = '✓';
-            checkbox.parentElement.appendChild(checkmark);
-            setTimeout(() => checkmark.remove(), 1000);
-        }
-
-        // Update UI immediately
-        if (choreDiv) {
-            if (checkbox.checked) {
-                choreDiv.classList.add('completed');
-                // Add completion info
-                const completionInfo = document.createElement('div');
-                completionInfo.className = 'completion-info text-muted ms-4';
-                completionInfo.innerHTML = `
-                    <small>Completed by ${staffSelect.value}</small>
-                    ${comment ? `<br><small>Comment: ${comment}</small>` : ''}
-                `;
-                choreDiv.appendChild(completionInfo);
-            } else {
-                choreDiv.classList.remove('completed');
-                // Remove completion info
-                const completionInfo = choreDiv.querySelector('.completion-info');
-                if (completionInfo) completionInfo.remove();
-            }
-        }
-
-        // Throttle API calls
-        const now = Date.now();
-        if (now - lastUpdateTime < UPDATE_THROTTLE) {
-            choreUpdateQueue.push({ choreId, checkbox, comment });
-            if (!isProcessingQueue) {
-                setTimeout(processChoreUpdateQueue, UPDATE_THROTTLE);
-            }
-            return;
-        }
-        lastUpdateTime = now;
-
-        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
+        const response = await fetch('/api/chore_completion', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                staff_name: staffSelect.value,
-                completed: checkbox.checked,
-                comment: comment
+                chore_id: choreId,
+                staff_name: staffName,
+                completed: isChecked
             })
         });
-
-        if (!response.ok) {
-            const responseData = await response.json().catch(() => null);
-            console.error('Server error:', responseData);
-            // Revert optimistic update
-            if (chore) {
-                chore.completed = !checkbox.checked;
-                chore.completed_by = null;
-                chore.completed_at = null;
-                chore.comment = '';
-            }
-            if (choreDiv) {
-                if (!checkbox.checked) {
-                    choreDiv.classList.add('completed');
-                } else {
-                    choreDiv.classList.remove('completed');
-                }
-            }
-            throw new Error(responseData?.detail || 'Failed to update chore status');
+        
+        if (!response.ok) throw new Error('Failed to update chore status');
+        
+        // Update the chore's completed status in our local state
+        const chore = currentChores.find(c => c.id === choreId);
+        if (chore) {
+            chore.completed = isChecked;
+            chore.completed_by = isChecked ? staffName : null;
         }
-
-        // Update section status
-        if (sectionName) {
-            const sectionChores = currentChores.filter(c => c.section === sectionName);
-            const allSectionChoresCompleted = sectionChores.every(c => c.completed);
-            const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
-            sectionCheckboxes.forEach(cb => {
-                if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
-                    cb.checked = allSectionChoresCompleted;
-                }
-            });
-        }
-
-        // Check if all chores are completed
-        const allChoresCompleted = currentChores.every(c => c.completed);
-        if (allChoresCompleted) {
-            successSection.classList.remove('d-none');
-            showConfetti();
-        } else {
-            successSection.classList.add('d-none');
-        }
-
-        // Update progress with throttling
-        throttledUpdateProgress();
-
+        
+        // Update progress
+        updateProgress();
+        
+        // Update section checkbox
+        updateSectionCheckbox(sectionName);
+        
     } catch (error) {
-        console.error('Error updating chore:', error);
-        checkbox.checked = !checkbox.checked;
-        alert(error.message || 'Failed to update chore. Please try again.');
+        console.error('Error updating chore completion:', error);
+        checkbox.checked = !isChecked;
+        alert('Failed to update task status. Please try again.');
     }
 }
 
@@ -693,7 +591,7 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
         }
 
         // Update progress
-        updateProgressIndicator();
+        updateProgress();
 
         // Add completion animation for successful update
         if (isChecked) {
@@ -924,46 +822,9 @@ function selectStaff(staffName) {
     document.getElementById(`staff-${staffName}`).classList.add('active');
 }
 
-function updateProgress() {
-    const totalTasks = document.querySelectorAll('.chore-item').length;
-    const completedTasks = document.querySelectorAll('.chore-item input[type="checkbox"]:checked').length;
-    const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-    document.querySelector('.progress-bar-inner').style.width = `${percentage}%`;
-    document.getElementById('progressText').textContent = `${completedTasks} of ${totalTasks} tasks completed`;
-    document.getElementById('progressPercentage').textContent = `${percentage}%`;
-
-    // Update emoji based on progress
-    const currentEncouragement = encouragements.reduce((prev, curr) => {
-        return (percentage >= curr.threshold * 100) ? curr : prev;
-    });
-
-    const emojiElement = document.querySelector('.progress-emoji');
-    if (emojiElement.textContent !== currentEncouragement.emoji) {
-        emojiElement.textContent = currentEncouragement.emoji;
-        emojiElement.classList.add('bounce');
-        setTimeout(() => emojiElement.classList.remove('bounce'), 1000);
-    }
-
-    // Show milestone achievements
-    if (percentage % 25 === 0 && percentage > 0 && !completedSections.has(percentage)) {
-        completedSections.add(percentage);
-        showAchievement(currentEncouragement.emoji, "Milestone Reached!", currentEncouragement.message, "milestone");
-    }
-
-    // Show fun facts every 5 completed tasks
-    if (completedCount % 5 === 0 && completedCount > 0 && !completedChores.has(completedCount)) {
-        completedChores.add(completedCount);
-        const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
-        showAchievement("💡", "Fun Fact!", randomFact, "fun-fact");
-    }
-
-    // Show success section if all tasks are completed
-    if (completedTasks === totalTasks && totalTasks > 0) {
-        successSection.classList.remove('d-none');
-    } else {
-        successSection.classList.add('d-none');
-    }
+function updateProgressIndicator() {
+    // This function is now deprecated and should not be used
+    return;
 }
 
 async function toggleChore(choreId, checkbox) {
@@ -1037,7 +898,7 @@ async function completeSection(sectionName) {
             }
         });
         
-        updateProgressIndicator();
+        updateProgress();
     } catch (error) {
         console.error('Error completing section:', error);
         alert('Failed to complete section. Please try again.');
@@ -1159,9 +1020,12 @@ async function fetchFunFact() {
 
 async function fetchQuote() {
     try {
-        const response = await fetch('https://api.quotable.io/random');
+        const response = await fetch('https://api.quotable.io/quotes/random?maxLength=100');
         const data = await response.json();
-        return `💭 "${data.content}" - ${data.author}`;
+        if (data && data[0]) {
+            return `💭 "${data[0].content}" - ${data[0].author}`;
+        }
+        return "Could not fetch quote at this time.";
     } catch (error) {
         return "Could not fetch quote at this time.";
     }
