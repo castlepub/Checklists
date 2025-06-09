@@ -732,4 +732,52 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize progress
     updateProgress();
+
+    async function resetChecklist() {
+        if (!confirm('Are you sure you want to reset this checklist? This will clear all completion statuses.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/checklists/${currentChecklist}/reset`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    staff_name: staffSelect.value
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to reset checklist');
+            }
+
+            // Clear all checkboxes
+            document.querySelectorAll('.chore-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            // Remove completed class from all chore items
+            document.querySelectorAll('.chore-item').forEach(item => {
+                item.classList.remove('completed');
+            });
+
+            // Remove completed class from all section headers
+            document.querySelectorAll('.section-header').forEach(header => {
+                header.classList.remove('completed');
+            });
+
+            // Reset the progress indicator
+            updateProgressIndicator(0, 0);
+
+            // Reload the checklist to ensure everything is in sync
+            await loadChecklist(currentChecklist);
+
+            alert('Checklist has been reset successfully!');
+        } catch (error) {
+            console.error('Error resetting checklist:', error);
+            alert('Failed to reset checklist. Please try again.');
+        }
+    }
 }); 

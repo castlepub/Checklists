@@ -508,30 +508,37 @@ async def reset_database(db: Session = Depends(get_db)):
             }
         )
 
-@app.post("/api/reset_checklist/{checklist_name}")
-async def reset_checklist(checklist_name: str, db: Session = Depends(get_db)):
+@app.post("/api/checklists/{checklist_name}/reset")
+def reset_checklist(checklist_name: str, request: Request, db: Session = Depends(get_db)):
+    """Reset a checklist by clearing all completion records."""
     try:
         # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
         if not checklist:
-            raise HTTPException(status_code=404, detail="Checklist not found")
+            raise HTTPException(status_code=404, detail=f"Checklist {checklist_name} not found")
+
+        # Get all sections for this checklist
+        sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
         
-        # Delete all completions for this checklist's chores
-        chore_ids = [chore.id for chore in checklist.chores]
-        db.query(ChoreCompletion).filter(ChoreCompletion.chore_id.in_(chore_ids)).delete(synchronize_session=False)
+        # Get all chores for these sections
+        section_ids = [section.id for section in sections]
+        chores = db.query(Chore).filter(Chore.section_id.in_(section_ids)).all()
         
-        # Delete any signatures for this checklist
-        db.query(Signature).filter(Signature.checklist_id == checklist.id).delete(synchronize_session=False)
+        # Delete all completion records for these chores
+        chore_ids = [chore.id for chore in chores]
+        db.query(ChoreCompletion).filter(ChoreCompletion.chore_id.in_(chore_ids)).delete()
         
+        # Commit the changes
         db.commit()
-        
-        # Send notification about the reset
-        await telegram.send_message(f"⚠️ {checklist_name.upper()} checklist has been manually reset")
-        
-        return {"status": "success", "message": f"Checklist {checklist_name} has been reset"}
+
+        # Send Telegram notification
+        staff_name = request.json.get('staff_name', 'Someone')
+        message = f"{staff_name} reset the {checklist_name} checklist"
+        send_telegram_message(message)
+
+        return {"message": "Checklist reset successfully"}
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error resetting checklist: {str(e)}")
+        logger.error(f"Error resetting checklist: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 def send_telegram_message(message: str):
