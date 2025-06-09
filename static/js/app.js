@@ -102,62 +102,40 @@ function showAchievement(title, message, type = 'milestone') {
 }
 
 function updateProgressIndicator() {
-    const progressBar = document.getElementById('progressBar');
-    if (!progressBar) return;
+    if (!Array.isArray(currentChores) || currentChores.length === 0) return;
     
-    const totalChores = currentChores.length;
-    if (totalChores === 0) return;
+    const total = currentChores.length;
+    const completed = currentChores.filter(chore => chore.completed).length;
+    const progress = (completed / total) * 100;
     
-    const completedChores = currentChores.filter(chore => chore.completed).length;
-    const progress = completedChores / totalChores;
-    
-    // Find the appropriate encouragement
-    const encouragement = encouragements
-        .slice()
-        .reverse()
-        .find(e => progress >= e.threshold);
-    
-    // Update the progress display
-    const progressDisplay = document.getElementById('progressDisplay');
-    if (!progressDisplay) return;
-    
-    // Update content
-    progressDisplay.innerHTML = `
-        <div class="progress-emoji">${encouragement.emoji}</div>
-        <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progress * 100}%"></div>
-        </div>
-        <div class="progress-text">
-            ${encouragement.message}<br>
-            <small>${completedChores} of ${totalChores} tasks done</small>
-        </div>
-    `;
-    
-    // Add bounce animation to emoji when threshold changes
-    if (encouragement.threshold > lastProgressThreshold) {
-        const emoji = progressDisplay.querySelector('.progress-emoji');
-        emoji.classList.add('bounce');
-        setTimeout(() => emoji.classList.remove('bounce'), 1000);
-    }
-    lastProgressThreshold = encouragement.threshold;
-    
-    // Show achievements for milestones
-    if (progress >= 0.25 && progress < 0.5) {
-        showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
-    }
-    if (progress >= 0.5 && progress < 0.75) {
-        showAchievement("Halfway Champion! 🏆", "You're crushing it!");
-    }
-    if (progress >= 0.75 && progress < 1) {
-        showAchievement("Almost There! ⭐", "The finish line is in sight!");
-    }
-    if (progress === 1) {
-        showAchievement("Checklist Master! 👑", "You've completed everything!");
+    // Update progress display
+    const progressDiv = document.getElementById('progressDisplay');
+    if (progressDiv) {
+        progressDiv.innerHTML = `
+            <div class="progress-display">
+                <div class="progress-emoji">🎯</div>
+                <div class="flex-grow-1">
+                    <div class="progress">
+                        <div class="progress-bar bg-success" 
+                             role="progressbar" 
+                             style="width: ${progress}%" 
+                             aria-valuenow="${progress}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                    <small class="text-muted">${completed} of ${total} tasks completed (${Math.round(progress)}%)</small>
+                </div>
+            </div>
+        `;
     }
     
-    // Show random fun fact every 5 completed tasks
-    if (completedChores > 0 && completedChores % 5 === 0) {
-        showAchievement("Did You Know?", getRandomFunFact(), 'fun-fact');
+    // Check if all tasks are completed
+    if (completed === total) {
+        successSection.classList.remove('d-none');
+        showConfetti();
+    } else {
+        successSection.classList.add('d-none');
     }
 }
 
@@ -266,15 +244,25 @@ async function loadChecklist() {
             throw new Error('Invalid response format from server');
         }
         
+        // Initialize currentChores with the fetched data
         currentChores = data;
+        console.log('Loaded chores:', currentChores);
+        
+        // Render the chores
         renderChores();
         choresContainer.classList.remove('d-none');
-        updateSignatureSection();
         
-        // Update task counter
-        const totalChores = currentChores.length;
-        const completedChores = currentChores.filter(chore => chore.completed).length;
+        // Check if all chores are completed and update UI accordingly
+        const allCompleted = currentChores.every(chore => chore.completed);
+        if (allCompleted) {
+            successSection.classList.remove('d-none');
+        } else {
+            successSection.classList.add('d-none');
+        }
+        
+        // Update progress indicator
         updateProgressIndicator();
+        
     } catch (error) {
         console.error('Error loading checklist:', error);
         alert('Failed to load checklist. Please try again.');
@@ -571,22 +559,31 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         if (chore) {
             chore.completed = checkbox.checked;
             chore.completed_by = staffSelect.value;
-        }
-
-        // Check if all chores in the section are completed
-        const sectionChores = currentChores.filter(c => c.section === sectionName);
-        const allSectionChoresCompleted = sectionChores.every(c => c.completed);
-        
-        // Update section checkbox
-        const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
-        sectionCheckboxes.forEach(cb => {
-            if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
-                cb.checked = allSectionChoresCompleted;
+            
+            // Check if all chores in the section are completed
+            const sectionChores = currentChores.filter(c => c.section === sectionName);
+            const allSectionChoresCompleted = sectionChores.every(c => c.completed);
+            
+            // Update section checkbox
+            const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
+            sectionCheckboxes.forEach(cb => {
+                if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
+                    cb.checked = allSectionChoresCompleted;
+                }
+            });
+            
+            // Check if all chores are completed
+            const allChoresCompleted = currentChores.every(c => c.completed);
+            if (allChoresCompleted) {
+                successSection.classList.remove('d-none');
+                showConfetti();
+            } else {
+                successSection.classList.add('d-none');
             }
-        });
-
-        // Update UI and check for checklist completion
-        updateSignatureSection();
+            
+            // Update progress
+            updateProgressIndicator();
+        }
         
     } catch (error) {
         console.error('Error updating chore:', error);
