@@ -694,6 +694,31 @@ async def debug_db_state(db: Session = Depends(get_db)):
             content={"status": "error", "message": str(e)}
         )
 
+@app.get("/api/debug/db")
+async def debug_db(db: Session = Depends(get_db)):
+    """Debug endpoint to check database state."""
+    try:
+        checklists = db.query(Checklist).all()
+        sections = db.query(Section).all()
+        chores = db.query(Chore).all()
+        staff = db.query(Staff).all()
+        
+        return {
+            "checklists": [{"id": c.id, "name": c.name, "description": c.description} for c in checklists],
+            "sections": [{"id": s.id, "name": s.name, "checklist_id": s.checklist_id} for s in sections],
+            "chores": [{"id": c.id, "description": c.description, "section_id": c.section_id} for c in chores],
+            "staff": [{"id": s.id, "name": s.name, "is_active": s.is_active} for s in staff],
+            "counts": {
+                "checklists": len(checklists),
+                "sections": len(sections),
+                "chores": len(chores),
+                "staff": len(staff)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 def init_db():
     """Initialize the database."""
     try:
@@ -736,8 +761,15 @@ def init_db():
 
 @app.get("/api/checklists")
 def get_checklists(db: Session = Depends(get_db)):
-    checklists = db.query(Checklist).all()
-    return [{"name": c.name, "description": c.description} for c in checklists]
+    """Get all checklists."""
+    try:
+        logger.info("Fetching all checklists")
+        checklists = db.query(Checklist).all()
+        logger.info(f"Found {len(checklists)} checklists")
+        return [{"id": c.id, "name": c.name, "description": c.description} for c in checklists]
+    except Exception as e:
+        logger.error(f"Error fetching checklists: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch checklists")
 
 @app.post("/api/admin/seed")
 def manual_seed(db: Session = Depends(get_db)):
