@@ -890,23 +890,7 @@ async function completeSection(sectionName) {
 // Populate checklist dropdown
 async function populateChecklistDropdown() {
     try {
-        const response = await fetch('/api/checklists');
-        const checklists = await response.json();
-        
-        // Clear existing options except the first one
-        while (checklistSelect.options.length > 1) {
-            checklistSelect.remove(1);
-        }
-        
-        // Add new options
-        checklists.forEach(checklist => {
-            const option = document.createElement('option');
-            option.value = checklist.name;
-            option.textContent = checklist.description || checklist.name;
-            checklistSelect.appendChild(option);
-        });
-        
-        // Also populate staff select
+        // Populate staff select first
         const staffNames = [
             "Nora", "Josh", "Vaile", "Melissa", "Paddy",
             "Pero", "Guy", "Dean", "Bethany", "Henry"
@@ -923,6 +907,23 @@ async function populateChecklistDropdown() {
             option.value = name;
             option.textContent = name;
             staffSelect.appendChild(option);
+        });
+
+        // Then populate checklists
+        const response = await fetch('/api/checklists');
+        const checklists = await response.json();
+        
+        // Clear existing options except the first one
+        while (checklistSelect.options.length > 1) {
+            checklistSelect.remove(1);
+        }
+        
+        // Add new options
+        checklists.forEach(checklist => {
+            const option = document.createElement('option');
+            option.value = checklist.name;
+            option.textContent = checklist.description || checklist.name;
+            checklistSelect.appendChild(option);
         });
     } catch (error) {
         console.error('Error loading checklists:', error);
