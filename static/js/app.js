@@ -266,7 +266,7 @@ function updateUI() {
     }
     
     if (checklistSelected && staffSelected) {
-        loadChecklist();
+        loadChecklist(checklistSelect.value);
     } else {
         choreContainer.classList.add('d-none');
         successSection.classList.add('d-none');
@@ -309,11 +309,19 @@ async function loadChecklist(checklistId) {
             
             console.log('Grouped sections:', sections);
             
+            // Create a container for sections
+            const sectionsContainer = document.createElement('div');
+            sectionsContainer.className = 'sections-container';
+            
             // Render each section
             Object.entries(sections).forEach(([sectionName, sectionChores]) => {
                 console.log('Rendering section:', sectionName, 'with chores:', sectionChores);
-                renderSection(sectionName, sectionChores);
+                const sectionElement = renderSection(sectionName, sectionChores);
+                sectionsContainer.appendChild(sectionElement);
             });
+            
+            // Add sections container to main container
+            choreContainer.appendChild(sectionsContainer);
             
             // Show the container
             choreContainer.classList.remove('d-none');
