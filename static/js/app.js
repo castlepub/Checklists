@@ -856,10 +856,9 @@ async function initializeApp() {
         if (!canvas) throw new Error('Signature pad canvas not found');
         signaturePad = new SignaturePad(canvas);
         
-        // Populate checklist dropdown
         await populateChecklistDropdown();
         console.log('Checklist dropdown populated');
-        
+
         // Add event listeners
         checklistSelect.addEventListener('change', loadChecklist);
         staffSelect.addEventListener('change', updateUI);
@@ -867,10 +866,10 @@ async function initializeApp() {
         submitChecklistBtn.addEventListener('click', submitChecklist);
         resetChecklistBtn.addEventListener('click', resetChecklist);
         console.log('Event listeners added');
-        
+
         // Initial UI update
         updateUI();
-        
+
     } catch (error) {
         console.error('Error during application initialization:', error);
         // Show error to user
@@ -881,5 +880,5 @@ async function initializeApp() {
     }
 }
 
-// Since we're using type="module" and defer, we can initialize directly
+// Start the application
 initializeApp(); 
