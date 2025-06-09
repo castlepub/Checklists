@@ -241,7 +241,30 @@ function updateUI() {
     const checklistSelected = checklistSelect.value !== '';
     const staffSelected = staffSelect.value !== '';
     
-    if (checklistSelected && staffSelected) {
+    if (!staffSelected) {
+        // Show message to select staff member
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-info mt-3';
+        alertDiv.textContent = 'Please select your name from the staff list to view and complete checklists.';
+        
+        // Remove any existing alert
+        const existingAlert = document.querySelector('.alert-info');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        // Insert after the checklist select
+        checklistSelect.parentNode.insertBefore(alertDiv, checklistSelect.nextSibling);
+        
+        // Hide chores and signature
+        choresContainer.classList.add('d-none');
+        signatureSection.classList.add('d-none');
+    } else if (checklistSelected && staffSelected) {
+        // Remove the alert if it exists
+        const existingAlert = document.querySelector('.alert-info');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
         loadChecklist();
     } else {
         choresContainer.classList.add('d-none');
@@ -784,9 +807,11 @@ async function populateChecklistDropdown() {
             }
             const option = document.createElement('option');
             option.value = c.name;
-            option.textContent = c.description || c.name;
+            // Only use the part before the dash for display
+            const displayName = c.name.split('-')[0].trim();
+            option.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
             checklistSelect.appendChild(option);
-            console.log('Added checklist option:', { name: c.name, description: c.description });
+            console.log('Added checklist option:', { name: c.name, displayName });
         });
         
         console.log('Final checklistSelect HTML:', checklistSelect.innerHTML);
@@ -851,4 +876,22 @@ async function resetChecklist() {
         console.error('Error resetting checklist:', error);
         alert('Failed to reset checklist. Please try again.');
     }
-} 
+}
+
+// Resize signature pad when window resizes
+function resizeSignaturePad() {
+    if (!signaturePad) return;
+    
+    const canvas = signaturePad.canvas;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const width = canvas.offsetWidth;
+    const height = canvas.offsetHeight;
+    
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.getContext("2d").scale(ratio, ratio);
+    signaturePad.clear(); // otherwise isEmpty() might return incorrect value
+}
+
+// Add window resize listener
+window.addEventListener('resize', resizeSignaturePad); 
