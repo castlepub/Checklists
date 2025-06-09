@@ -1,214 +1,189 @@
-// Wait for all resources to load
-window.addEventListener('load', async () => {
-    try {
-        // Get DOM elements and validate their existence
-        const checklistSelect = document.getElementById('checklistSelect');
-        if (!checklistSelect) {
-            console.error('Could not find checklistSelect element');
-            return;
-        }
+// Global variables
+let signaturePad;
+let currentChores = [];
+let choreUpdateQueue = [];
+let isProcessingQueue = false;
+let selectedStaff = null;
+let completedChores = new Set();
+let completedSections = new Set();
+let totalChores = 0;
+let completedCount = 0;
 
-        const staffSelect = document.getElementById('staffSelect');
-        if (!staffSelect) {
-            console.error('Could not find staffSelect element');
-            return;
-        }
+// Add achievements container to the body
+const achievementsContainer = document.createElement('div');
+achievementsContainer.id = 'achievementsContainer';
+document.body.appendChild(achievementsContainer);
 
-        const choresContainer = document.getElementById('choresContainer');
-        if (!choresContainer) {
-            console.error('Could not find choresContainer element');
-            return;
-        }
+const encouragements = [
+    { threshold: 0, emoji: "🌱", message: "Let's get started!" },
+    { threshold: 0.25, emoji: "🌿", message: "Great progress!" },
+    { threshold: 0.50, emoji: "🌳", message: "Halfway there!" },
+    { threshold: 0.75, emoji: "🌺", message: "Almost done!" },
+    { threshold: 1, emoji: "🎉", message: "Amazing work!" }
+];
 
-        const signatureSection = document.getElementById('signatureSection');
-        const signaturePadElement = document.getElementById('signaturePad');
-        if (!signaturePadElement) {
-            console.error('Could not find signaturePad element');
-            return;
-        }
-        const signaturePad = new SignaturePad(signaturePadElement, {
-            minWidth: 2,
-            maxWidth: 4,
-            penColor: "rgb(0, 0, 0)"
-        });
+const funFacts = [
+    "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251!",
+    "The world's strongest beer is 'Snake Venom' at 67.5% alcohol by volume!",
+    "The first beer was brewed in Mesopotamia around 4000 BC!",
+    "The most expensive beer ever sold was a bottle of 'Allsopp's Arctic Ale' for $503,300!",
+    "The longest bar in the world is in New Orleans, measuring 130.6 meters!",
+    "The first Oktoberfest was actually a wedding celebration for Crown Prince Ludwig in 1810!",
+    "The term 'pub' comes from 'public house'!",
+    "The world's largest beer festival is Oktoberfest in Munich!",
+    "The first beer cans were introduced in 1935!",
+    "The world's most popular beer style is lager!"
+];
 
-        const clearSignatureBtn = document.getElementById('clearSignatureBtn');
-        if (!clearSignatureBtn) {
-            console.error('Could not find clearSignatureBtn element');
-            return;
-        }
+let lastFunFactIndex = -1;
+let achievementsShown = new Set();
+let lastProgressThreshold = 0;
 
-        const submitChecklistBtn = document.getElementById('submitChecklistBtn');
-        if (!submitChecklistBtn) {
-            console.error('Could not find submitChecklistBtn element');
-            return;
-        }
+function getRandomFunFact() {
+    let index;
+    do {
+        index = Math.floor(Math.random() * funFacts.length);
+    } while (index === lastFunFactIndex);
+    lastFunFactIndex = index;
+    return funFacts[index];
+}
 
-        const resetChecklistBtn = document.getElementById('resetChecklistBtn');
-        if (!resetChecklistBtn) {
-            console.error('Could not find resetChecklistBtn element');
-            return;
-        }
-
-        // State variables
-        let currentChores = [];
-        let choreUpdateQueue = [];
-        let isProcessingQueue = false;
-        let selectedStaff = null;
-        let completedChores = new Set();
-        let completedSections = new Set();
-        let totalChores = document.querySelectorAll('.chore-checkbox').length;
-        let completedCount = 0;
-
-        // Add achievements container to the body
-        const achievementsContainer = document.createElement('div');
-        achievementsContainer.id = 'achievementsContainer';
-        document.body.appendChild(achievementsContainer);
-
-        const encouragements = [
-            { threshold: 0, emoji: "🌱", message: "Let's get started!" },
-            { threshold: 0.25, emoji: "🌿", message: "Great progress!" },
-            { threshold: 0.50, emoji: "🌳", message: "Halfway there!" },
-            { threshold: 0.75, emoji: "🌺", message: "Almost done!" },
-            { threshold: 1, emoji: "🎉", message: "Amazing work!" }
-        ];
-
-        const funFacts = [
-            "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251!",
-            "The world's strongest beer is 'Snake Venom' at 67.5% alcohol by volume!",
-            "The first beer was brewed in Mesopotamia around 4000 BC!",
-            "The most expensive beer ever sold was a bottle of 'Allsopp's Arctic Ale' for $503,300!",
-            "The longest bar in the world is in New Orleans, measuring 130.6 meters!",
-            "The first Oktoberfest was actually a wedding celebration for Crown Prince Ludwig in 1810!",
-            "The term 'pub' comes from 'public house'!",
-            "The world's largest beer festival is Oktoberfest in Munich!",
-            "The first beer cans were introduced in 1935!",
-            "The world's most popular beer style is lager!"
-        ];
-
-        let lastFunFactIndex = -1;
-        let achievementsShown = new Set();
-        let lastProgressThreshold = 0;
-
-        function getRandomFunFact() {
-            let index;
-            do {
-                index = Math.floor(Math.random() * funFacts.length);
-            } while (index === lastFunFactIndex);
-            lastFunFactIndex = index;
-            return funFacts[index];
-        }
-
-        function showAchievement(title, message, type = 'milestone') {
-            const achievementId = `${title}-${message}`;
-            if (achievementsShown.has(achievementId)) return;
-            achievementsShown.add(achievementId);
-            
-            const achievement = document.createElement('div');
-            achievement.className = `achievement ${type}`;
-            achievement.innerHTML = `
-                <div class="achievement-content">
-                    <div class="achievement-emoji">${type === 'fun-fact' ? '💡' : '🏆'}</div>
-                    <div class="achievement-message">
-                        <strong>${title}</strong><br>
-                        ${message}
-                    </div>
-                </div>
-            `;
-            
-            achievementsContainer.appendChild(achievement);
-            
-            // Animate in
-            requestAnimationFrame(() => {
-                achievement.classList.add('show');
-            });
-            
-            // Add click to dismiss
-            achievement.addEventListener('click', () => {
-                achievement.classList.remove('show');
-                setTimeout(() => {
-                    achievement.remove();
-                    achievementsShown.delete(achievementId);
-                }, 500);
-            });
-            
-            // Auto-dismiss after 10 seconds for fun facts, 15 seconds for milestones
-            const timeout = type === 'fun-fact' ? 10000 : 15000;
+function showAchievement(title, message, type = 'milestone') {
+    const achievementId = `${title}-${message}`;
+    if (achievementsShown.has(achievementId)) return;
+    achievementsShown.add(achievementId);
+    
+    const achievement = document.createElement('div');
+    achievement.className = `achievement ${type}`;
+    achievement.innerHTML = `
+        <div class="achievement-content">
+            <div class="achievement-emoji">${type === 'fun-fact' ? '💡' : '🏆'}</div>
+            <div class="achievement-message">
+                <strong>${title}</strong><br>
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    achievementsContainer.appendChild(achievement);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        achievement.classList.add('show');
+    });
+    
+    // Add click to dismiss
+    achievement.addEventListener('click', () => {
+        achievement.classList.remove('show');
+        setTimeout(() => {
+            achievement.remove();
+            achievementsShown.delete(achievementId);
+        }, 500);
+    });
+    
+    // Auto-dismiss after 10 seconds for fun facts, 15 seconds for milestones
+    const timeout = type === 'fun-fact' ? 10000 : 15000;
+    setTimeout(() => {
+        if (achievement.isConnected) {
+            achievement.classList.remove('show');
             setTimeout(() => {
                 if (achievement.isConnected) {
-                    achievement.classList.remove('show');
-                    setTimeout(() => {
-                        if (achievement.isConnected) {
-                            achievement.remove();
-                            achievementsShown.delete(achievementId);
-                        }
-                    }, 500);
+                    achievement.remove();
+                    achievementsShown.delete(achievementId);
                 }
-            }, timeout);
+            }, 500);
         }
+    }, timeout);
+}
 
-        function updateProgressIndicator() {
-            const progressBar = document.getElementById('progressBar');
-            if (!progressBar) return;
-            
-            const totalChores = currentChores.length;
-            if (totalChores === 0) return;
-            
-            const completedChores = currentChores.filter(chore => chore.completed).length;
-            const progress = completedChores / totalChores;
-            
-            // Find the appropriate encouragement
-            const encouragement = encouragements
-                .slice()
-                .reverse()
-                .find(e => progress >= e.threshold);
-            
-            // Update the progress display
-            const progressDisplay = document.getElementById('progressDisplay');
-            if (!progressDisplay) return;
-            
-            // Update content
-            progressDisplay.innerHTML = `
-                <div class="progress-emoji">${encouragement.emoji}</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progress * 100}%"></div>
-                </div>
-                <div class="progress-text">
-                    ${encouragement.message}<br>
-                    <small>${completedChores} of ${totalChores} tasks done</small>
-                </div>
-            `;
-            
-            // Add bounce animation to emoji when threshold changes
-            if (encouragement.threshold > lastProgressThreshold) {
-                const emoji = progressDisplay.querySelector('.progress-emoji');
-                emoji.classList.add('bounce');
-                setTimeout(() => emoji.classList.remove('bounce'), 1000);
-            }
-            lastProgressThreshold = encouragement.threshold;
-            
-            // Show achievements for milestones
-            if (progress >= 0.25 && progress < 0.5) {
-                showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
-            }
-            if (progress >= 0.5 && progress < 0.75) {
-                showAchievement("Halfway Champion! 🏆", "You're crushing it!");
-            }
-            if (progress >= 0.75 && progress < 1) {
-                showAchievement("Almost There! ⭐", "The finish line is in sight!");
-            }
-            if (progress === 1) {
-                showAchievement("Checklist Master! 👑", "You've completed everything!");
-            }
-            
-            // Show random fun fact every 5 completed tasks
-            if (completedChores > 0 && completedChores % 5 === 0) {
-                showAchievement("Did You Know?", getRandomFunFact(), 'fun-fact');
-            }
-        }
+function updateProgressIndicator() {
+    const progressBar = document.getElementById('progressBar');
+    if (!progressBar) return;
+    
+    const totalChores = currentChores.length;
+    if (totalChores === 0) return;
+    
+    const completedChores = currentChores.filter(chore => chore.completed).length;
+    const progress = completedChores / totalChores;
+    
+    // Find the appropriate encouragement
+    const encouragement = encouragements
+        .slice()
+        .reverse()
+        .find(e => progress >= e.threshold);
+    
+    // Update the progress display
+    const progressDisplay = document.getElementById('progressDisplay');
+    if (!progressDisplay) return;
+    
+    // Update content
+    progressDisplay.innerHTML = `
+        <div class="progress-emoji">${encouragement.emoji}</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress * 100}%"></div>
+        </div>
+        <div class="progress-text">
+            ${encouragement.message}<br>
+            <small>${completedChores} of ${totalChores} tasks done</small>
+        </div>
+    `;
+    
+    // Add bounce animation to emoji when threshold changes
+    if (encouragement.threshold > lastProgressThreshold) {
+        const emoji = progressDisplay.querySelector('.progress-emoji');
+        emoji.classList.add('bounce');
+        setTimeout(() => emoji.classList.remove('bounce'), 1000);
+    }
+    lastProgressThreshold = encouragement.threshold;
+    
+    // Show achievements for milestones
+    if (progress >= 0.25 && progress < 0.5) {
+        showAchievement("Quarter Way Hero! 🌟", "Keep up the great work!");
+    }
+    if (progress >= 0.5 && progress < 0.75) {
+        showAchievement("Halfway Champion! 🏆", "You're crushing it!");
+    }
+    if (progress >= 0.75 && progress < 1) {
+        showAchievement("Almost There! ⭐", "The finish line is in sight!");
+    }
+    if (progress === 1) {
+        showAchievement("Checklist Master! 👑", "You've completed everything!");
+    }
+    
+    // Show random fun fact every 5 completed tasks
+    if (completedChores > 0 && completedChores % 5 === 0) {
+        showAchievement("Did You Know?", getRandomFunFact(), 'fun-fact');
+    }
+}
 
-        // Initialize everything
+// Initialize the application
+async function initializeApp() {
+    try {
         console.log('Initializing application...');
+        
+        // Get DOM elements
+        const checklistSelect = document.getElementById('checklistSelect');
+        const staffSelect = document.getElementById('staffSelect');
+        const choresContainer = document.getElementById('choresContainer');
+        const signatureSection = document.getElementById('signatureSection');
+        const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+        const submitChecklistBtn = document.getElementById('submitChecklistBtn');
+        const resetChecklistBtn = document.getElementById('resetChecklistBtn');
+        
+        // Verify all required elements exist
+        if (!checklistSelect) throw new Error('Checklist select element not found');
+        if (!staffSelect) throw new Error('Staff select element not found');
+        if (!choresContainer) throw new Error('Chores container element not found');
+        if (!signatureSection) throw new Error('Signature section element not found');
+        if (!clearSignatureBtn) throw new Error('Clear signature button not found');
+        if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
+        if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
+        
+        // Initialize signature pad
+        const canvas = document.getElementById('signaturePad');
+        if (!canvas) throw new Error('Signature pad canvas not found');
+        signaturePad = new SignaturePad(canvas);
+        
         await populateChecklistDropdown();
         console.log('Checklist dropdown populated');
 
@@ -220,15 +195,21 @@ window.addEventListener('load', async () => {
         resetChecklistBtn.addEventListener('click', resetChecklist);
         console.log('Event listeners added');
 
+        // Initial UI update
+        updateUI();
+
     } catch (error) {
         console.error('Error during application initialization:', error);
         // Show error to user
         const errorDiv = document.createElement('div');
         errorDiv.className = 'alert alert-danger';
-        errorDiv.textContent = 'Failed to initialize application. Please refresh the page to try again.';
+        errorDiv.textContent = `Failed to initialize application: ${error.message}. Please refresh the page to try again.`;
         document.querySelector('.container').prepend(errorDiv);
     }
-});
+}
+
+// Start the application when the module loads
+initializeApp();
 
 function updateUI() {
     const checklistSelected = checklistSelect.value !== '';
@@ -826,59 +807,4 @@ async function resetChecklist() {
         console.error('Error resetting checklist:', error);
         alert('Failed to reset checklist. Please try again.');
     }
-}
-
-// Get DOM elements
-const checklistSelect = document.getElementById('checklistSelect');
-const staffSelect = document.getElementById('staffSelect');
-const choresContainer = document.getElementById('choresContainer');
-const signatureSection = document.getElementById('signatureSection');
-const clearSignatureBtn = document.getElementById('clearSignatureBtn');
-const submitChecklistBtn = document.getElementById('submitChecklistBtn');
-const resetChecklistBtn = document.getElementById('resetChecklistBtn');
-
-// Initialize the application
-async function initializeApp() {
-    try {
-        console.log('Initializing application...');
-        
-        // Verify all required elements exist
-        if (!checklistSelect) throw new Error('Checklist select element not found');
-        if (!staffSelect) throw new Error('Staff select element not found');
-        if (!choresContainer) throw new Error('Chores container element not found');
-        if (!signatureSection) throw new Error('Signature section element not found');
-        if (!clearSignatureBtn) throw new Error('Clear signature button not found');
-        if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
-        if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
-        
-        // Initialize signature pad
-        const canvas = document.getElementById('signaturePad');
-        if (!canvas) throw new Error('Signature pad canvas not found');
-        signaturePad = new SignaturePad(canvas);
-        
-        await populateChecklistDropdown();
-        console.log('Checklist dropdown populated');
-
-        // Add event listeners
-        checklistSelect.addEventListener('change', loadChecklist);
-        staffSelect.addEventListener('change', updateUI);
-        clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
-        submitChecklistBtn.addEventListener('click', submitChecklist);
-        resetChecklistBtn.addEventListener('click', resetChecklist);
-        console.log('Event listeners added');
-
-        // Initial UI update
-        updateUI();
-
-    } catch (error) {
-        console.error('Error during application initialization:', error);
-        // Show error to user
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'alert alert-danger';
-        errorDiv.textContent = `Failed to initialize application: ${error.message}. Please refresh the page to try again.`;
-        document.querySelector('.container').prepend(errorDiv);
-    }
-}
-
-// Start the application
-initializeApp(); 
+} 
