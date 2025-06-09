@@ -1027,14 +1027,15 @@ document.head.appendChild(style);
 // Fun buttons functionality
 async function fetchNews() {
     try {
-        // Using the free News API from https://newsdata.io/
-        const response = await fetch('https://newsdata.io/api/1/news?apikey=pub_35192d7f1b5c0c5f5e0c1e7c3b8c8d5c5c8d0&language=en&size=1');
+        // Using the free News API from https://api.thenewsapi.com/
+        const response = await fetch('https://api.thenewsapi.com/v1/news/top?api_token=api_token=XHiVgKC6aqDxPvXU6Oi7W8DdZmI1v98cH9ZA2y6r&locale=gb&limit=1');
         const data = await response.json();
-        if (data.results && data.results[0]) {
-            return `📰 ${data.results[0].title}`;
+        if (data.data && data.data[0]) {
+            return `📰 ${data.data[0].title}`;
         }
         return "Could not fetch news at this time.";
     } catch (error) {
+        console.error('Error fetching news:', error);
         return "Could not fetch news at this time.";
     }
 }
