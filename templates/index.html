@@ -14,35 +14,53 @@
 </head>
 <body class="bg-light">
     <div class="container py-3">
-        <div class="text-center mb-4">
+        <!-- Header with Logo and Title -->
+        <header class="header text-center mb-4">
             <img src="/static/logo.png" alt="Castle Pub Logo" class="img-fluid mb-3" style="max-height: 100px;">
-            <h1 class="h2">Castle Pub Checklists</h1>
+            <h1 class="h2 mb-0">Castle Pub Checklists</h1>
+        </header>
+
+        <!-- Staff Selection -->
+        <div class="staff-selection">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white py-3">
+                    <h5 class="mb-0">Staff Selection</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="staffSelect" class="form-label fw-bold">Select Your Name:</label>
+                            <select class="form-select form-select-lg" id="staffSelect">
+                                <option value="">Select your name...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Checklist Selection -->
-        <div class="card mb-3 shadow-sm">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="mb-0">Checklist Selection</h5>
+            </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label for="checklistSelect" class="form-label fw-bold">Select Checklist:</label>
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-lg" id="checklistSelect">
-                            <option value="">Choose a checklist...</option>
-                        </select>
-                        <button id="resetChecklist" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" style="display: none; min-width: 100px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
-                                <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
-                                <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
-                            </svg>
-                            Reset
-                        </button>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label for="checklistSelect" class="form-label fw-bold">Select Checklist:</label>
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-lg" id="checklistSelect">
+                                <option value="">Choose a checklist...</option>
+                            </select>
+                            <button id="resetChecklist" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" style="display: none; min-width: 100px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
+                                    <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
+                                    <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
+                                </svg>
+                                Reset
+                            </button>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="staffSelect" class="form-label fw-bold">Your Name:</label>
-                    <select class="form-select form-select-lg" id="staffSelect">
-                        <option value="">Select your name...</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -51,12 +69,12 @@
         <div id="progressDisplay" class="d-none"></div>
 
         <!-- Chores Container -->
-        <div id="choreContainer" class="card mb-3 shadow-sm d-none">
+        <div id="choreContainer" class="card shadow-sm mb-4 d-none">
             <div class="card-body p-0"></div>
         </div>
 
         <!-- Success Section -->
-        <div id="successSection" class="card mb-3 shadow-sm d-none">
+        <div id="successSection" class="card shadow-sm mb-4 d-none">
             <div class="card-body text-center">
                 <h3 class="text-success mb-3">All tasks completed! 🎉</h3>
                 <p class="mb-4">Please sign below to confirm completion.</p>

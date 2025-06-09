@@ -275,6 +275,7 @@ async function loadChecklist(checklistId) {
     if (!checklistId) return;
     
     try {
+        console.log('Loading checklist:', checklistId);
         const response = await fetch(`/api/checklists/${checklistId}/chores`);
         if (!response.ok) {
             console.error('Failed to load checklist:', response.status, response.statusText);
@@ -282,6 +283,7 @@ async function loadChecklist(checklistId) {
         }
         
         const data = await response.json();
+        console.log('Received checklist data:', data);
         currentChores = data;
         
         // Clear existing chores
@@ -299,6 +301,8 @@ async function loadChecklist(checklistId) {
             if (!sections[chore.section]) sections[chore.section] = [];
             sections[chore.section].push(chore);
         });
+        
+        console.log('Grouped sections:', sections);
         
         // Render each section
         Object.entries(sections).forEach(([sectionName, sectionChores]) => {
@@ -348,76 +352,103 @@ function renderChores(chores) {
 }
 
 function renderSection(sectionName, sectionChores) {
-    const sectionDiv = document.createElement('div');
-    sectionDiv.className = 'section mb-3';
+    console.log('Rendering section:', sectionName, 'with chores:', sectionChores);
     
-    // Section header with checkbox
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section mb-4';
+    sectionDiv.dataset.sectionName = sectionName;
+    
+    // Section header
     const sectionHeader = document.createElement('div');
-    sectionHeader.className = 'section-header d-flex align-items-center p-2 bg-light';
+    sectionHeader.className = 'card-header bg-light d-flex align-items-center gap-2';
     
     const sectionCheckbox = document.createElement('input');
     sectionCheckbox.type = 'checkbox';
-    sectionCheckbox.className = 'form-check-input me-2';
+    sectionCheckbox.className = 'form-check-input';
     sectionCheckbox.checked = sectionChores.every(chore => chore.completed);
-    sectionCheckbox.addEventListener('change', () => completeSection(sectionName));
     
-    const sectionTitle = document.createElement('label');
-    sectionTitle.className = 'form-check-label h5 mb-0 flex-grow-1';
+    const sectionTitle = document.createElement('h5');
+    sectionTitle.className = 'mb-0 flex-grow-1';
     sectionTitle.textContent = sectionName;
-    sectionTitle.style.cursor = 'pointer';
-    sectionTitle.addEventListener('click', () => {
-        sectionCheckbox.checked = !sectionCheckbox.checked;
-        completeSection(sectionName);
-    });
     
     sectionHeader.appendChild(sectionCheckbox);
     sectionHeader.appendChild(sectionTitle);
     sectionDiv.appendChild(sectionHeader);
     
-    // Chores list
-    const choresList = document.createElement('div');
-    choresList.className = 'chores-list p-2';
+    // Chores container
+    const choresContainer = document.createElement('div');
+    choresContainer.className = 'card-body';
     
+    // Sort chores by order
+    sectionChores.sort((a, b) => a.order - b.order);
+    
+    // Add each chore
     sectionChores.forEach(chore => {
         const choreDiv = document.createElement('div');
-        choreDiv.className = 'chore-item d-flex align-items-center mb-2';
+        choreDiv.className = 'chore-item mb-2';
+        if (chore.completed) {
+            choreDiv.classList.add('completed');
+        }
+        
+        // Checkbox and label container
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'd-flex align-items-start gap-2';
         
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.className = 'form-check-input me-2';
+        checkbox.className = 'form-check-input mt-1';
+        checkbox.id = `chore-${chore.id}`;
         checkbox.checked = chore.completed;
         checkbox.dataset.choreId = chore.id;
-        checkbox.dataset.section = sectionName;  // Add section data attribute
-        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox, sectionName));
         
         const label = document.createElement('label');
         label.className = 'form-check-label flex-grow-1';
+        label.htmlFor = `chore-${chore.id}`;
         label.textContent = chore.description;
-        label.style.cursor = 'pointer';
-        label.addEventListener('click', () => {
-            checkbox.checked = !checkbox.checked;
-            handleChoreCompletion(chore.id, checkbox, sectionName);
-        });
         
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'd-flex flex-column w-100';
-        contentDiv.appendChild(label);
+        checkboxContainer.appendChild(checkbox);
+        checkboxContainer.appendChild(label);
+        choreDiv.appendChild(checkboxContainer);
         
-        // Add completed by info if task is completed
+        // Add completion info if completed
         if (chore.completed && chore.completed_by) {
-            const completedByDiv = document.createElement('div');
-            completedByDiv.className = 'completed-by';
-            completedByDiv.textContent = `Completed by ${chore.completed_by}`;
-            contentDiv.appendChild(completedByDiv);
+            const completionInfo = document.createElement('div');
+            completionInfo.className = 'completion-info text-muted ms-4';
+            completionInfo.innerHTML = `
+                <small>Completed by ${chore.completed_by}</small>
+                ${chore.comment ? `<br><small>Comment: ${chore.comment}</small>` : ''}
+            `;
+            choreDiv.appendChild(completionInfo);
+        }
+        // Add comment input if not completed
+        else if (!chore.completed) {
+            const commentDiv = document.createElement('div');
+            commentDiv.className = 'chore-comment ms-4 mt-1';
+            
+            const commentInput = document.createElement('input');
+            commentInput.type = 'text';
+            commentInput.className = 'form-control form-control-sm';
+            commentInput.placeholder = 'Add a comment...';
+            commentInput.value = chore.comment || '';
+            
+            commentDiv.appendChild(commentInput);
+            choreDiv.appendChild(commentDiv);
         }
         
-        choreDiv.appendChild(checkbox);
-        choreDiv.appendChild(contentDiv);
-        choresList.appendChild(choreDiv);
+        choresContainer.appendChild(choreDiv);
+        
+        // Add checkbox event listener
+        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox, sectionName));
     });
     
-    sectionDiv.appendChild(choresList);
-    return sectionDiv;
+    sectionDiv.appendChild(choresContainer);
+    
+    // Add section checkbox event listener
+    const choreCheckboxes = choresContainer.querySelectorAll('input[type="checkbox"]');
+    sectionCheckbox.addEventListener('change', () => handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes));
+    
+    // Add to the main container
+    choreContainer.appendChild(sectionDiv);
 }
 
 async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
@@ -588,7 +619,7 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         const response = await fetch(`/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 staff_name: staffSelect.value,
