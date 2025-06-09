@@ -235,45 +235,64 @@ def get_last_reset_time(checklist_name: str, db: Session) -> Optional[datetime]:
 @app.get("/api/checklists/{checklist_name}/chores")
 def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
     """Get all chores for a checklist."""
-    checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
-    if not checklist:
-        raise HTTPException(status_code=404, detail="Checklist not found")
+    try:
+        logger.info(f"Loading chores for checklist: {checklist_name}")
+        
+        # Get the checklist with sections and chores in a single query
+        checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
+        if not checklist:
+            logger.error(f"Checklist {checklist_name} not found")
+            raise HTTPException(status_code=404, detail="Checklist not found")
 
-    # Get all sections and their chores
-    sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
-    
-    chores = []
-    for section in sections:
-        section_chores = db.query(Chore).filter(Chore.section_id == section.id).all()
-        for chore in section_chores:
-            # Get the latest completion for this chore
-            completion = db.query(ChoreCompletion).filter(
-                ChoreCompletion.chore_id == chore.id
-            ).order_by(ChoreCompletion.completed_at.desc()).first()
-            
+        # Get all sections, chores, and their latest completions in a single query
+        sections = (
+            db.query(Section)
+            .filter(Section.checklist_id == checklist.id)
+            .order_by(Section.order)
+            .all()
+        )
+        
+        # Get all chores and their latest completions in a single query
+        chores_with_completions = (
+            db.query(
+                Chore,
+                ChoreCompletion
+            )
+            .outerjoin(
+                ChoreCompletion,
+                and_(
+                    Chore.id == ChoreCompletion.chore_id,
+                    ChoreCompletion.completed == True
+                )
+            )
+            .filter(Chore.section_id.in_([s.id for s in sections]))
+            .order_by(Chore.order)
+            .all()
+        )
+        
+        # Process the results
+        chores = []
+        for chore, completion in chores_with_completions:
+            section = next(s for s in sections if s.id == chore.section_id)
             chore_data = {
                 "id": chore.id,
                 "description": chore.description,
                 "order": chore.order,
                 "section": section.name,
                 "section_id": section.id,
-                "completed": False,
-                "completed_by": None,
-                "completed_at": None,
-                "comment": None
+                "completed": bool(completion),
+                "completed_by": completion.staff_name if completion else None,
+                "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
+                "comment": completion.comment if completion else None
             }
-            
-            if completion:
-                chore_data.update({
-                    "completed": True,
-                    "completed_by": completion.staff_name,
-                    "completed_at": completion.completed_at.isoformat(),
-                    "comment": completion.comment
-                })
-            
             chores.append(chore_data)
-    
-    return chores
+        
+        logger.info(f"Successfully loaded {len(chores)} chores for checklist {checklist_name}")
+        return chores
+        
+    except Exception as e:
+        logger.error(f"Error loading chores for checklist {checklist_name}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
@@ -588,24 +607,45 @@ def send_telegram_message(message: str):
 @app.post("/api/chores/{chore_id}/toggle")
 async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db)):
     try:
+        logger.info(f"Toggling chore {chore_id} with data: {data}")
+        
         chore = db.query(Chore).filter(Chore.id == chore_id).first()
         if not chore:
+            logger.error(f"Chore {chore_id} not found")
             raise HTTPException(status_code=404, detail="Chore not found")
 
+        # Log current state
+        logger.info(f"Current chore state - completed: {chore.completed}, completed_by: {chore.completed_by}")
+        
         # Use the completed value from the request
-        chore.completed = data.get("completed", not chore.completed)
-        chore.completed_by = data.get("staff_name") if chore.completed else None
-        chore.completed_at = datetime.utcnow() if chore.completed else None
+        completed = data.get("completed")
+        staff_name = data.get("staff_name")
+        
+        logger.info(f"Updating chore - completed: {completed}, staff_name: {staff_name}")
+        
+        if completed is None:
+            logger.error("No completed value provided in request")
+            raise HTTPException(status_code=400, detail="completed field is required")
+            
+        if not staff_name:
+            logger.error("No staff_name provided in request")
+            raise HTTPException(status_code=400, detail="staff_name is required")
+
+        chore.completed = completed
+        chore.completed_by = staff_name if completed else None
+        chore.completed_at = datetime.utcnow() if completed else None
 
         # Send Telegram notification
         if chore.completed:
-            message = f"✅ <b>{data.get('staff_name')}</b> completed: {chore.description}"
+            message = f"✅ <b>{staff_name}</b> completed: {chore.description}"
             send_telegram_message(message)
 
         db.commit()
+        logger.info(f"Successfully updated chore {chore_id}")
         return {"completed": chore.completed}
     except Exception as e:
-        logger.error(f"Error toggling chore: {str(e)}", exc_info=True)
+        logger.error(f"Error toggling chore {chore_id}: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sections/{section_id}/complete")

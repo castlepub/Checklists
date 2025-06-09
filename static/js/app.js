@@ -629,6 +629,20 @@ async function processChoreUpdateQueue() {
 
 async function handleChoreCompletion(choreId, checkbox, sectionName) {
     try {
+        console.log('Handling chore completion:', {
+            choreId,
+            checked: checkbox.checked,
+            staffName: staffSelect.value,
+            sectionName
+        });
+
+        if (!staffSelect.value) {
+            console.error('No staff member selected');
+            checkbox.checked = !checkbox.checked;
+            alert('Please select a staff member first.');
+            return;
+        }
+
         const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
@@ -640,7 +654,14 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
             })
         });
 
-        if (!response.ok) throw new Error('Failed to update chore status');
+        console.log('Server response:', response.status);
+        const responseData = await response.json().catch(() => null);
+        console.log('Response data:', responseData);
+
+        if (!response.ok) {
+            console.error('Server error:', responseData);
+            throw new Error(responseData?.detail || 'Failed to update chore status');
+        }
         
         // Update the chore in currentChores
         const chore = currentChores.find(c => c.id === choreId);
@@ -686,7 +707,7 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
     } catch (error) {
         console.error('Error updating chore:', error);
         checkbox.checked = !checkbox.checked; // Revert the checkbox
-        alert('Failed to update chore. Please try again.');
+        alert(error.message || 'Failed to update chore. Please try again.');
     }
 }
 
