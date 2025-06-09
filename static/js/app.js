@@ -981,13 +981,17 @@ function selectStaff(staffName) {
 }
 
 function updateProgress() {
-    const progress = (completedCount / totalChores) * 100;
-    document.querySelector('.progress-fill').style.width = `${progress}%`;
-    document.querySelector('.progress-text').textContent = `${Math.round(progress)}%`;
+    const totalTasks = document.querySelectorAll('.chore-item').length;
+    const completedTasks = document.querySelectorAll('.chore-item input[type="checkbox"]:checked').length;
+    const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    document.querySelector('.progress-bar-inner').style.width = `${percentage}%`;
+    document.getElementById('progressText').textContent = `${completedTasks} of ${totalTasks} tasks completed`;
+    document.getElementById('progressPercentage').textContent = `${percentage}%`;
 
     // Update emoji based on progress
     const currentEncouragement = encouragements.reduce((prev, curr) => {
-        return (progress >= curr.threshold * 100) ? curr : prev;
+        return (percentage >= curr.threshold * 100) ? curr : prev;
     });
 
     const emojiElement = document.querySelector('.progress-emoji');
@@ -998,8 +1002,8 @@ function updateProgress() {
     }
 
     // Show milestone achievements
-    if (progress % 25 === 0 && progress > 0 && !completedSections.has(progress)) {
-        completedSections.add(progress);
+    if (percentage % 25 === 0 && percentage > 0 && !completedSections.has(percentage)) {
+        completedSections.add(percentage);
         showAchievement(currentEncouragement.emoji, "Milestone Reached!", currentEncouragement.message, "milestone");
     }
 
@@ -1176,4 +1180,78 @@ style.textContent = `
         z-index: 9999;
     }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+// Fun buttons functionality
+async function fetchNews() {
+    try {
+        const response = await fetch('https://api.thenewsapi.com/v1/news/top?api_token=ZWNTWt7A4YuhmINhCCcTfKIYaHrk37LAiI2dhuq3&locale=us&limit=1');
+        const data = await response.json();
+        if (data.data && data.data[0]) {
+            return `📰 ${data.data[0].title}`;
+        }
+        return "Could not fetch news at this time.";
+    } catch (error) {
+        return "Could not fetch news at this time.";
+    }
+}
+
+async function fetchFunFact() {
+    try {
+        const response = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random');
+        const data = await response.json();
+        return `💡 ${data.text}`;
+    } catch (error) {
+        return "Could not fetch fun fact at this time.";
+    }
+}
+
+async function fetchQuote() {
+    try {
+        const response = await fetch('https://api.quotable.io/random');
+        const data = await response.json();
+        return `💭 "${data.content}" - ${data.author}`;
+    } catch (error) {
+        return "Could not fetch quote at this time.";
+    }
+}
+
+function showFunContent(content) {
+    const funContent = document.getElementById('funContent');
+    funContent.textContent = content;
+    funContent.classList.remove('show');
+    void funContent.offsetWidth; // Trigger reflow
+    funContent.classList.add('show');
+}
+
+// Event listeners for fun buttons
+document.getElementById('newsButton').addEventListener('click', async () => {
+    const news = await fetchNews();
+    showFunContent(news);
+});
+
+document.getElementById('funFactButton').addEventListener('click', async () => {
+    const funFact = await fetchFunFact();
+    showFunContent(funFact);
+});
+
+document.getElementById('quoteButton').addEventListener('click', async () => {
+    const quote = await fetchQuote();
+    showFunContent(quote);
+});
+
+// Add progress update to existing functions
+function displayChores(chores) {
+    // ... existing code ...
+    
+    // Add this at the end of the function
+    updateProgress();
+}
+
+// Add to the checkbox change event listener
+function handleCheckboxChange(event) {
+    // ... existing code ...
+    
+    // Add this at the end of the function
+    updateProgress();
+} 

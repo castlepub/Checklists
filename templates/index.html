@@ -13,7 +13,26 @@
     <meta name="apple-mobile-web-app-title" content="Castle Checklists">
 </head>
 <body class="bg-light">
-    <div class="container py-3">
+    <div class="container py-4">
+        <!-- Fun Buttons -->
+        <div class="fun-buttons-container">
+            <button class="fun-button" id="newsButton">
+                <i class="fas fa-newspaper"></i>
+                News
+            </button>
+            <button class="fun-button" id="funFactButton">
+                <i class="fas fa-lightbulb"></i>
+                Fun Fact
+            </button>
+            <button class="fun-button" id="quoteButton">
+                <i class="fas fa-quote-right"></i>
+                Quote
+            </button>
+        </div>
+
+        <!-- Fun Content Display -->
+        <div id="funContent" class="fun-content"></div>
+
         <!-- Header with Logo and Title -->
         <header class="header text-center mb-4">
             <img src="/static/logo.png" alt="Castle Pub Logo" class="img-fluid mb-3" style="max-height: 100px;">
@@ -21,19 +40,17 @@
         </header>
 
         <!-- Staff Selection -->
-        <div class="staff-selection">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white py-3">
-                    <h5 class="mb-0">Staff Selection</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label for="staffSelect" class="form-label fw-bold">Select Your Name:</label>
-                            <select class="form-select form-select-lg" id="staffSelect">
-                                <option value="">Select your name...</option>
-                            </select>
-                        </div>
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="mb-0">Staff Selection</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label for="staffSelect" class="form-label fw-bold">Select Your Name:</label>
+                        <select class="form-select form-select-lg" id="staffSelect">
+                            <option value="">Choose your name...</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -65,8 +82,16 @@
             </div>
         </div>
 
-        <!-- Progress Display -->
-        <div id="progressDisplay" class="d-none"></div>
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-text">
+                <span id="progressText">0 of 0 tasks completed</span>
+                <span id="progressPercentage">0%</span>
+            </div>
+            <div class="progress-bar-outer">
+                <div class="progress-bar-inner" style="width: 0%"></div>
+            </div>
+        </div>
 
         <!-- Chores Container -->
         <div id="choreContainer" class="card shadow-sm mb-4 d-none">
@@ -75,13 +100,10 @@
 
         <!-- Success Section -->
         <div id="successSection" class="card shadow-sm mb-4 d-none">
-            <div class="card-body text-center">
-                <h3 class="text-success mb-3">All tasks completed! 🎉</h3>
-                <p class="mb-4">Please sign below to confirm completion.</p>
-                <canvas id="signaturePad" class="mb-3 border rounded"></canvas>
-                <div class="d-flex gap-2">
-                    <button id="clearSignatureBtn" class="btn btn-outline-secondary flex-grow-1">Clear</button>
-                    <button id="submitChecklistBtn" class="btn btn-success flex-grow-1">
+            <div class="card-body">
+                <h4 class="text-success mb-4">🎉 All tasks completed! 🎉</h4>
+                <div class="text-center">
+                    <button class="btn btn-success btn-lg" onclick="submitChecklist()">
                         Submit Checklist
                     </button>
                 </div>
