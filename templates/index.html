@@ -48,10 +48,22 @@
                         <select id="checklistSelect" class="form-select me-2">
                             <option value="">Choose a checklist...</option>
                         </select>
-                        <button id="resetChecklist" class="btn btn-outline-danger"><i class="fas fa-redo"></i> Reset</button>
+                        <button id="resetChecklistBtn" class="btn btn-outline-danger"><i class="fas fa-redo"></i> Reset</button>
                     </div>
                 </div>
                 <div id="choresContainer"></div>
+                
+                <!-- Signature Section -->
+                <div id="signatureSection" class="mt-4 d-none">
+                    <h4>Sign Off Checklist</h4>
+                    <div class="signature-container">
+                        <canvas id="signaturePad" class="signature-pad"></canvas>
+                    </div>
+                    <div class="mt-2 d-flex justify-content-between">
+                        <button id="clearSignatureBtn" class="btn btn-secondary">Clear Signature</button>
+                        <button id="submitChecklistBtn" class="btn btn-primary">Submit Checklist</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
