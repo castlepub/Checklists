@@ -276,7 +276,10 @@ async function loadChecklist(checklistId) {
     
     try {
         const response = await fetch(`/api/checklists/${checklistId}/chores`);
-        if (!response.ok) throw new Error('Failed to load checklist');
+        if (!response.ok) {
+            console.error('Failed to load checklist:', response.status, response.statusText);
+            throw new Error('Failed to load checklist');
+        }
         
         const data = await response.json();
         currentChores = data;
@@ -293,10 +296,8 @@ async function loadChecklist(checklistId) {
         // Group chores by section
         const sections = {};
         data.forEach(chore => {
-            const sectionMatch = chore.description.match(/^([^:]+):/);
-            const sectionName = sectionMatch ? sectionMatch[1] : 'General Tasks';
-            if (!sections[sectionName]) sections[sectionName] = [];
-            sections[sectionName].push(chore);
+            if (!sections[chore.section]) sections[chore.section] = [];
+            sections[chore.section].push(chore);
         });
         
         // Render each section
