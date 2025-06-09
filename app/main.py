@@ -742,5 +742,10 @@ def get_checklists(db: Session = Depends(get_db)):
 @app.post("/api/admin/seed")
 def manual_seed(db: Session = Depends(get_db)):
     from .seed_data import seed_database
-    seed_database(db)
-    return {"message": "Database seeded successfully"} 
+    try:
+        seed_database(db)
+        return {"message": "Database seeded successfully"}
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        return JSONResponse(status_code=500, content={"error": str(e), "traceback": tb}) 
