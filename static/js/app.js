@@ -166,16 +166,24 @@ function updateProgressIndicator() {
 // Initialize the application
 async function initializeApp() {
     try {
-        console.log('Initializing application...');
+        console.log('Starting application initialization...');
         
         // Get DOM elements
+        console.log('Getting DOM elements...');
         checklistSelect = document.getElementById('checklistSelect');
+        console.log('checklistSelect:', checklistSelect);
         staffSelect = document.getElementById('staffSelect');
+        console.log('staffSelect:', staffSelect);
         choresContainer = document.getElementById('choresContainer');
+        console.log('choresContainer:', choresContainer);
         signatureSection = document.getElementById('signatureSection');
+        console.log('signatureSection:', signatureSection);
         clearSignatureBtn = document.getElementById('clearSignatureBtn');
+        console.log('clearSignatureBtn:', clearSignatureBtn);
         submitChecklistBtn = document.getElementById('submitChecklistBtn');
+        console.log('submitChecklistBtn:', submitChecklistBtn);
         resetChecklistBtn = document.getElementById('resetChecklistBtn');
+        console.log('resetChecklistBtn:', resetChecklistBtn);
         
         // Verify all required elements exist
         if (!checklistSelect) throw new Error('Checklist select element not found');
@@ -187,14 +195,18 @@ async function initializeApp() {
         if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
         
         // Initialize signature pad
+        console.log('Initializing signature pad...');
         const canvas = document.getElementById('signaturePad');
         if (!canvas) throw new Error('Signature pad canvas not found');
         signaturePad = new SignaturePad(canvas);
+        console.log('Signature pad initialized');
         
+        console.log('Populating checklist dropdown...');
         await populateChecklistDropdown();
         console.log('Checklist dropdown populated');
 
         // Add event listeners
+        console.log('Adding event listeners...');
         checklistSelect.addEventListener('change', loadChecklist);
         staffSelect.addEventListener('change', updateUI);
         clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
@@ -203,7 +215,9 @@ async function initializeApp() {
         console.log('Event listeners added');
 
         // Initial UI update
+        console.log('Performing initial UI update...');
         updateUI();
+        console.log('Initial UI update complete');
 
     } catch (error) {
         console.error('Error during application initialization:', error);
@@ -216,7 +230,12 @@ async function initializeApp() {
 }
 
 // Start the application when the module loads
-initializeApp();
+console.log('Starting application...');
+initializeApp().then(() => {
+    console.log('Application initialization complete');
+}).catch(error => {
+    console.error('Failed to initialize application:', error);
+});
 
 function updateUI() {
     const checklistSelected = checklistSelect.value !== '';
@@ -731,8 +750,12 @@ async function completeSection(sectionName) {
 // Populate checklist dropdown
 async function populateChecklistDropdown() {
     try {
-        console.log('Fetching checklists...');
+        console.log('Starting populateChecklistDropdown...');
+        console.log('checklistSelect element:', checklistSelect);
+        
+        console.log('Fetching checklists from:', window.location.origin + '/api/checklists');
         const response = await fetch(window.location.origin + '/api/checklists');
+        console.log('Response:', response);
         console.log('Response status:', response.status);
         
         if (!response.ok) {
@@ -740,31 +763,45 @@ async function populateChecklistDropdown() {
         }
         
         const data = await response.json();
-        console.log('Received checklists:', data);
+        console.log('Received checklists data:', data);
         
         if (!Array.isArray(data)) {
             throw new Error('Expected array of checklists but got: ' + typeof data);
         }
         
+        if (!checklistSelect) {
+            throw new Error('checklistSelect is null when trying to populate options');
+        }
+        
+        console.log('Clearing existing options...');
         checklistSelect.innerHTML = '<option value="">Choose a checklist...</option>';
-        data.forEach(c => {
+        
+        console.log('Adding new options...');
+        data.forEach((c, index) => {
             if (!c.name) {
-                console.warn('Checklist missing name:', c);
+                console.warn(`Checklist at index ${index} missing name:`, c);
                 return;
             }
             const option = document.createElement('option');
             option.value = c.name;
             option.textContent = c.description || c.name;
             checklistSelect.appendChild(option);
-            console.log('Added checklist option:', c.name);
+            console.log('Added checklist option:', { name: c.name, description: c.description });
         });
+        
+        console.log('Final checklistSelect HTML:', checklistSelect.innerHTML);
     } catch (error) {
         console.error('Failed to load checklists:', error);
         // Show error to user
         const errorDiv = document.createElement('div');
         errorDiv.className = 'alert alert-danger';
-        errorDiv.textContent = 'Failed to load checklists. Please refresh the page to try again.';
-        checklistSelect.parentNode.insertBefore(errorDiv, checklistSelect);
+        errorDiv.textContent = `Failed to load checklists: ${error.message}. Please refresh the page to try again.`;
+        if (checklistSelect && checklistSelect.parentNode) {
+            checklistSelect.parentNode.insertBefore(errorDiv, checklistSelect);
+        } else {
+            console.error('Could not show error to user - checklistSelect or its parent is null');
+            document.querySelector('.container').prepend(errorDiv);
+        }
     }
 }
 
