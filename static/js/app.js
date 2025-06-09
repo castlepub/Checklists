@@ -1025,21 +1025,6 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Fun buttons functionality
-async function fetchNews() {
-    try {
-        // Using the free News API from newsapi.org
-        const response = await fetch('https://newsapi.org/v2/top-headlines?country=gb&apiKey=0a2920cd1c4b45f0a1b3f0c5c3e0f0b3');
-        const data = await response.json();
-        if (data.articles && data.articles[0]) {
-            return `📰 ${data.articles[0].title}`;
-        }
-        return "Could not fetch news at this time.";
-    } catch (error) {
-        console.error('Error fetching news:', error);
-        return "Could not fetch news at this time.";
-    }
-}
-
 async function fetchFunFact() {
     try {
         const response = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random');
@@ -1059,11 +1044,6 @@ function showFunContent(content) {
 }
 
 // Event listeners for fun buttons
-document.getElementById('newsButton').addEventListener('click', async () => {
-    const news = await fetchNews();
-    showFunContent(news);
-});
-
 document.getElementById('funFactButton').addEventListener('click', async () => {
     const funFact = await fetchFunFact();
     showFunContent(funFact);
