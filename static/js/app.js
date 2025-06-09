@@ -1,23 +1,54 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize variables
+document.addEventListener('DOMContentLoaded', async () => {
+    // Get DOM elements and validate their existence
     const checklistSelect = document.getElementById('checklistSelect');
-    const staffSelect = document.getElementById('staffSelect');
-    const choresList = document.getElementById('choresList');
-    const choresContainer = document.getElementById('choresContainer');
-    const signatureSection = document.getElementById('signatureSection');
-    const signaturePadCanvas = document.getElementById('signaturePad');
-    let signaturePad = null;
-    if (signaturePadCanvas) {
-        signaturePad = new SignaturePad(signaturePadCanvas, {
-            minWidth: 2,
-            maxWidth: 4,
-            penColor: "rgb(0, 0, 0)"
-        });
+    if (!checklistSelect) {
+        console.error('Could not find checklistSelect element');
+        return;
     }
-    const clearSignatureBtn = document.getElementById('clearSignature');
-    const submitChecklistBtn = document.getElementById('submitChecklist');
-    const resetChecklistBtn = document.getElementById('resetChecklist');
 
+    const staffSelect = document.getElementById('staffSelect');
+    if (!staffSelect) {
+        console.error('Could not find staffSelect element');
+        return;
+    }
+
+    const choresContainer = document.getElementById('choresContainer');
+    if (!choresContainer) {
+        console.error('Could not find choresContainer element');
+        return;
+    }
+
+    const signatureSection = document.getElementById('signatureSection');
+    const signaturePadElement = document.getElementById('signaturePad');
+    if (!signaturePadElement) {
+        console.error('Could not find signaturePad element');
+        return;
+    }
+    const signaturePad = new SignaturePad(signaturePadElement, {
+        minWidth: 2,
+        maxWidth: 4,
+        penColor: "rgb(0, 0, 0)"
+    });
+
+    const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+    if (!clearSignatureBtn) {
+        console.error('Could not find clearSignatureBtn element');
+        return;
+    }
+
+    const submitChecklistBtn = document.getElementById('submitChecklistBtn');
+    if (!submitChecklistBtn) {
+        console.error('Could not find submitChecklistBtn element');
+        return;
+    }
+
+    const resetChecklistBtn = document.getElementById('resetChecklistBtn');
+    if (!resetChecklistBtn) {
+        console.error('Could not find resetChecklistBtn element');
+        return;
+    }
+
+    // State variables
     let currentChores = [];
     let choreUpdateQueue = [];
     let isProcessingQueue = false;
@@ -226,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (checklistSelected && staffSelected) {
             loadChecklist();
         } else {
-            choresList.classList.add('d-none');
+            choresContainer.classList.add('d-none');
             signatureSection.classList.add('d-none');
         }
     }
@@ -249,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             currentChores = data;
             renderChores();
-            choresList.classList.remove('d-none');
+            choresContainer.classList.remove('d-none');
             updateSignatureSection();
             resizeSignaturePad();
             
@@ -260,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error loading checklist:', error);
             alert('Failed to load checklist. Please try again.');
-            choresList.classList.add('d-none');
+            choresContainer.classList.add('d-none');
             signatureSection.classList.add('d-none');
         }
     }
@@ -788,19 +819,41 @@ document.addEventListener('DOMContentLoaded', function() {
     // Populate checklist dropdown
     async function populateChecklistDropdown() {
         try {
+            console.log('Fetching checklists...');
             const response = await fetch('/api/checklists');
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
             const data = await response.json();
-            const checklistSelect = document.getElementById('checklistSelect');
+            console.log('Received checklists:', data);
+            
+            if (!Array.isArray(data)) {
+                throw new Error('Expected array of checklists but got: ' + typeof data);
+            }
+            
             checklistSelect.innerHTML = '<option value="">Choose a checklist...</option>';
             data.forEach(c => {
+                if (!c.name) {
+                    console.warn('Checklist missing name:', c);
+                    return;
+                }
                 const option = document.createElement('option');
                 option.value = c.name;
                 option.textContent = c.description || c.name;
                 checklistSelect.appendChild(option);
+                console.log('Added checklist option:', c.name);
             });
         } catch (error) {
             console.error('Failed to load checklists:', error);
+            // Show error to user
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger';
+            errorDiv.textContent = 'Failed to load checklists. Please refresh the page to try again.';
+            checklistSelect.parentNode.insertBefore(errorDiv, checklistSelect);
         }
     }
-    populateChecklistDropdown();
+    await populateChecklistDropdown();
 }); 
