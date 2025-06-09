@@ -997,10 +997,11 @@ document.head.appendChild(style);
 // Fun buttons functionality
 async function fetchNews() {
     try {
-        const response = await fetch('https://api.thenewsapi.com/v1/news/top?api_token=ZWNTWt7A4YuhmINhCCcTfKIYaHrk37LAiI2dhuq3&locale=us&limit=1');
+        // Using the free News API from https://newsdata.io/
+        const response = await fetch('https://newsdata.io/api/1/news?apikey=pub_35192d7f1b5c0c5f5e0c1e7c3b8c8d5c5c8d0&language=en&size=1');
         const data = await response.json();
-        if (data.data && data.data[0]) {
-            return `📰 ${data.data[0].title}`;
+        if (data.results && data.results[0]) {
+            return `📰 ${data.results[0].title}`;
         }
         return "Could not fetch news at this time.";
     } catch (error) {
@@ -1015,19 +1016,6 @@ async function fetchFunFact() {
         return `💡 ${data.text}`;
     } catch (error) {
         return "Could not fetch fun fact at this time.";
-    }
-}
-
-async function fetchQuote() {
-    try {
-        const response = await fetch('https://api.quotable.io/quotes/random?maxLength=100');
-        const data = await response.json();
-        if (data && data[0]) {
-            return `💭 "${data[0].content}" - ${data[0].author}`;
-        }
-        return "Could not fetch quote at this time.";
-    } catch (error) {
-        return "Could not fetch quote at this time.";
     }
 }
 
@@ -1048,11 +1036,6 @@ document.getElementById('newsButton').addEventListener('click', async () => {
 document.getElementById('funFactButton').addEventListener('click', async () => {
     const funFact = await fetchFunFact();
     showFunContent(funFact);
-});
-
-document.getElementById('quoteButton').addEventListener('click', async () => {
-    const quote = await fetchQuote();
-    showFunContent(quote);
 });
 
 // Add progress update to existing functions
