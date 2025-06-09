@@ -524,4 +524,177 @@ body {
 .form-check-input:checked {
     background-color: #28a745 !important;
     border-color: #28a745 !important;
+}
+
+/* Main container styles */
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header styles */
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* Form controls */
+.form-control {
+    margin-bottom: 15px;
+}
+
+/* Checklist container */
+.checklist-container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Section styles */
+.section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.section-title {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+/* Chore item styles */
+.chore-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.chore-item:last-child {
+    border-bottom: none;
+}
+
+.chore-checkbox {
+    margin-right: 10px;
+}
+
+.chore-description {
+    flex-grow: 1;
+}
+
+/* Completed chore styles */
+.chore-item.completed {
+    opacity: 0.7;
+    text-decoration: line-through;
+}
+
+/* Progress display */
+.progress-display {
+    text-align: center;
+    margin: 20px 0;
+    font-size: 1.2em;
+}
+
+/* Floating checkmark animation */
+@keyframes float-up {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-20px) scale(1.2);
+        opacity: 0;
+    }
+}
+
+.floating-checkmark {
+    position: absolute;
+    color: #28a745;
+    font-size: 24px;
+    pointer-events: none;
+    animation: float-up 1s ease-out forwards;
+}
+
+/* Comment section */
+.comment-section {
+    margin-top: 10px;
+    padding-left: 30px;
+}
+
+.comment-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+/* Success section */
+.success-section {
+    text-align: center;
+    padding: 20px;
+    margin-top: 20px;
+    background-color: #d4edda;
+    border-radius: 8px;
+    display: none;
+}
+
+.success-section.show {
+    display: block;
+}
+
+/* Reset button */
+.reset-button {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.reset-button:hover {
+    background-color: #c82333;
+}
+
+/* Utility classes */
+.d-none {
+    display: none !important;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mt-3 {
+    margin-top: 1rem;
+}
+
+.mb-3 {
+    margin-bottom: 1rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .section {
+        padding: 10px;
+    }
+    
+    .chore-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .comment-section {
+        padding-left: 0;
+    }
 } 

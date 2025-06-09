@@ -272,16 +272,11 @@ function updateUI() {
 }
 
 async function loadChecklist(checklistId) {
-    if (!checklistId || !staffSelect.value) {
-        choreContainer.innerHTML = '';
-        return;
-    }
-
+    if (!checklistId) return;
+    
     try {
         const response = await fetch(`/api/checklists/${checklistId}/chores`);
-        if (!response.ok) {
-            throw new Error('Failed to fetch checklist data');
-        }
+        if (!response.ok) throw new Error('Failed to load checklist');
         
         const data = await response.json();
         currentChores = data;
@@ -289,20 +284,34 @@ async function loadChecklist(checklistId) {
         // Clear existing chores
         choreContainer.innerHTML = '';
         
-        // Render the chores
-        renderChores(data);
+        // Add progress display
+        const progressDiv = document.createElement('div');
+        progressDiv.id = 'progressDisplay';
+        progressDiv.className = 'progress-display';
+        choreContainer.appendChild(progressDiv);
+        
+        // Group chores by section
+        const sections = {};
+        data.forEach(chore => {
+            const sectionMatch = chore.description.match(/^([^:]+):/);
+            const sectionName = sectionMatch ? sectionMatch[1] : 'General Tasks';
+            if (!sections[sectionName]) sections[sectionName] = [];
+            sections[sectionName].push(chore);
+        });
+        
+        // Render each section
+        Object.entries(sections).forEach(([sectionName, sectionChores]) => {
+            renderSection(sectionName, sectionChores);
+        });
         
         // Show the container
-        choreContainer.style.display = 'block';
+        choreContainer.classList.remove('d-none');
         
         // Update progress
         updateProgressIndicator();
-        
     } catch (error) {
         console.error('Error loading checklist:', error);
         alert('Failed to load checklist. Please try again.');
-        choreContainer.innerHTML = '';
-        successSection.classList.add('d-none');
     }
 }
 
@@ -412,20 +421,20 @@ function renderSection(sectionName, sectionChores) {
 
 async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
     const isChecked = sectionCheckbox.checked;
+    const sectionName = sectionCheckbox.closest('.section').dataset.sectionName;
     
-    // Process each checkbox sequentially to avoid race conditions
-    for (const checkbox of choreCheckboxes) {
-        if (checkbox.checked !== isChecked) {
-            checkbox.checked = isChecked;
-            try {
-                await handleChoreCompletion(checkbox.id.replace('chore-', ''), checkbox);
-            } catch (error) {
-                // If any checkbox update fails, revert the section checkbox
-                sectionCheckbox.checked = !isChecked;
-                sectionCheckbox.indeterminate = true;
-                return;
+    try {
+        // Process each checkbox sequentially to avoid race conditions
+        for (const checkbox of choreCheckboxes) {
+            if (checkbox.checked !== isChecked) {
+                checkbox.checked = isChecked;
+                await handleChoreCompletion(parseInt(checkbox.id.replace('chore-', '')), checkbox);
             }
         }
+    } catch (error) {
+        // If any checkbox update fails, revert the section checkbox
+        sectionCheckbox.checked = !isChecked;
+        sectionCheckbox.indeterminate = true;
     }
 }
 
@@ -575,13 +584,12 @@ async function processChoreUpdateQueue() {
 
 async function handleChoreCompletion(choreId, checkbox, sectionName) {
     try {
-        const response = await fetch('/api/chore_completion', {
+        const response = await fetch(`/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                chore_id: choreId,
                 staff_name: staffSelect.value,
                 completed: checkbox.checked
             })
@@ -594,6 +602,7 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         if (chore) {
             chore.completed = checkbox.checked;
             chore.completed_by = staffSelect.value;
+            chore.completed_at = new Date().toISOString();
             
             // Check if all chores in the section are completed
             const sectionChores = currentChores.filter(c => c.section === sectionName);
@@ -620,6 +629,15 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
             updateProgressIndicator();
         }
         
+        // Add completion animation
+        if (checkbox.checked) {
+            const checkmark = document.createElement('div');
+            checkmark.className = 'floating-checkmark';
+            checkmark.textContent = '✓';
+            checkbox.parentElement.appendChild(checkmark);
+            
+            setTimeout(() => checkmark.remove(), 1000);
+        }
     } catch (error) {
         console.error('Error updating chore:', error);
         checkbox.checked = !checkbox.checked; // Revert the checkbox
@@ -873,37 +891,42 @@ async function completeSection(sectionName) {
 async function populateChecklistDropdown() {
     try {
         const response = await fetch('/api/checklists');
-        if (!response.ok) {
-            throw new Error('Failed to fetch checklists');
-        }
-        
         const checklists = await response.json();
         
-        // Clear existing options except the default one
-        checklistSelect.innerHTML = '<option value="">Choose a checklist...</option>';
+        // Clear existing options except the first one
+        while (checklistSelect.options.length > 1) {
+            checklistSelect.remove(1);
+        }
         
         // Add new options
         checklists.forEach(checklist => {
             const option = document.createElement('option');
-            option.value = checklist.name;  // Use the name as the value
-            
-            // Format the display name
-            let displayName = checklist.name
-                .split('-')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
-            
-            if (!displayName.includes('Checklist')) {
-                displayName += ' Checklist';
-            }
-            
-            option.textContent = displayName;
+            option.value = checklist.name;
+            option.textContent = checklist.description || checklist.name;
             checklistSelect.appendChild(option);
         });
         
+        // Also populate staff select
+        const staffNames = [
+            "Nora", "Josh", "Vaile", "Melissa", "Paddy",
+            "Pero", "Guy", "Dean", "Bethany", "Henry"
+        ];
+        
+        // Clear existing options except the first one
+        while (staffSelect.options.length > 1) {
+            staffSelect.remove(1);
+        }
+        
+        // Add new options
+        staffNames.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            staffSelect.appendChild(option);
+        });
     } catch (error) {
-        console.error('Error populating checklist dropdown:', error);
-        alert('Failed to load checklists. Please refresh the page to try again.');
+        console.error('Error loading checklists:', error);
+        alert('Failed to load checklists. Please refresh the page.');
     }
 }
 
