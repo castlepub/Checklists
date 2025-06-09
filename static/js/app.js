@@ -5,11 +5,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const choresList = document.getElementById('choresList');
     const choresContainer = document.getElementById('choresContainer');
     const signatureSection = document.getElementById('signatureSection');
-    const signaturePad = new SignaturePad(document.getElementById('signaturePad'), {
-        minWidth: 2,
-        maxWidth: 4,
-        penColor: "rgb(0, 0, 0)"
-    });
+    const signaturePadCanvas = document.getElementById('signaturePad');
+    let signaturePad = null;
+    if (signaturePadCanvas) {
+        signaturePad = new SignaturePad(signaturePadCanvas, {
+            minWidth: 2,
+            maxWidth: 4,
+            penColor: "rgb(0, 0, 0)"
+        });
+    }
     const clearSignatureBtn = document.getElementById('clearSignature');
     const submitChecklistBtn = document.getElementById('submitChecklist');
     const resetChecklistBtn = document.getElementById('resetChecklist');

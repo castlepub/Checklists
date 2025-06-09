@@ -737,4 +737,10 @@ def init_db():
 @app.get("/api/checklists")
 def get_checklists(db: Session = Depends(get_db)):
     checklists = db.query(Checklist).all()
-    return [{"name": c.name, "description": c.description} for c in checklists] 
+    return [{"name": c.name, "description": c.description} for c in checklists]
+
+@app.post("/api/admin/seed")
+def manual_seed(db: Session = Depends(get_db)):
+    from .seed_data import seed_database
+    seed_database(db)
+    return {"message": "Database seeded successfully"} 
