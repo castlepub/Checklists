@@ -570,6 +570,7 @@ function renderSection(sectionName, sectionChores) {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section mb-4';
     sectionDiv.dataset.sectionName = sectionName;
+    sectionDiv.dataset.sectionId = sectionChores[0]?.section_id;
 
     const sectionHeader = document.createElement('div');
     sectionHeader.className = 'card-header bg-light d-flex align-items-center gap-2';
@@ -658,6 +659,12 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
 
         if (choresToUpdate.length === 0) return;
 
+        // Collect all comments
+        const comments = choresToUpdate
+            .filter(item => item.comment)
+            .map(item => item.comment);
+        const combinedComment = comments.join(' | ');
+
         // Optimistically update UI
         choresToUpdate.forEach(({ checkbox, comment }) => {
             checkbox.checked = isChecked;
@@ -682,47 +689,28 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
             }
         });
 
-        // Prepare batch request
-        const batchPromises = choresToUpdate.map(({ choreId, comment }) => 
-            fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    staff_name: staffName,
-                    completed: isChecked,
-                    comment: comment
-                })
+        // Send single request for the section
+        const sectionId = parseInt(sectionCheckbox.closest('.section').dataset.sectionId);
+        const response = await fetch(window.location.origin + `/api/sections/${sectionId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                staff_name: staffName,
+                completed: isChecked,
+                comment: combinedComment || undefined
             })
-        );
+        });
 
-        // Send all requests in parallel
-        const results = await Promise.allSettled(batchPromises);
-
-        // Check for any failures
-        const failures = results.filter(r => r.status === 'rejected');
-        if (failures.length > 0) {
-            console.error('Some chores failed to update:', failures);
-            // Revert UI for failed updates
-            failures.forEach((_, index) => {
-                const { checkbox } = choresToUpdate[index];
-                checkbox.checked = !isChecked;
-                const choreDiv = checkbox.closest('.chore-item');
-                if (choreDiv) {
-                    if (!isChecked) {
-                        choreDiv.classList.add('completed');
-                    } else {
-                        choreDiv.classList.remove('completed');
-                    }
-                }
-            });
+        if (!response.ok) {
+            throw new Error('Failed to update section');
         }
 
         // Update progress
         updateProgressIndicator();
 
-        // Add completion animation for successful updates
+        // Add completion animation for successful update
         if (isChecked) {
             choresToUpdate.forEach(({ checkbox }) => {
                 const checkmark = document.createElement('div');

@@ -702,6 +702,7 @@ async def complete_section(section_id: int, data: dict, db: Session = Depends(ge
             raise HTTPException(status_code=400, detail="Staff name is required")
         
         # Complete all chores in the section
+        comments = []
         for chore in chores:
             # Create or update completion
             completion = db.query(ChoreCompletion).filter(
@@ -713,20 +714,29 @@ async def complete_section(section_id: int, data: dict, db: Session = Depends(ge
                 # Update existing completion
                 completion.completed = True
                 completion.completed_at = datetime.now(cet_tz)
+                if data.get('comment'):
+                    completion.comment = data.get('comment')
+                    comments.append(f"• {chore.description}: {data.get('comment')}")
             else:
                 # Create new completion
                 completion = ChoreCompletion(
                     chore_id=chore.id,
                     staff_name=staff_name,
                     completed=True,
-                    completed_at=datetime.now(cet_tz)
+                    completed_at=datetime.now(cet_tz),
+                    comment=data.get('comment')
                 )
+                if data.get('comment'):
+                    comments.append(f"• {chore.description}: {data.get('comment')}")
                 db.add(completion)
         
         db.commit()
         
-        # Send Telegram notification
-        message = f"✅ {staff_name} completed section: {section.name}"
+        # Send single Telegram notification for the entire section
+        time_str = datetime.now(cet_tz).strftime("%H:%M")
+        message = f"✅ {staff_name} completed section '{section.name}' at {time_str}"
+        if comments:
+            message += "\nComments:\n" + "\n".join(comments)
         send_telegram_message(message)
         
         return {"status": "success"}
