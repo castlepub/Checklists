@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from .models import Checklist, Section, Chore, ChoreCompletion
+from .models import Checklist, Section, Chore, ChoreCompletion, Staff
 import logging
 
 # Configure logging
@@ -14,6 +14,7 @@ def seed_database(db: Session):
     db.query(Chore).delete()
     db.query(Section).delete()
     db.query(Checklist).delete()
+    db.query(Staff).delete()
     db.commit()
     
     # Create staff members
@@ -22,6 +23,12 @@ def seed_database(db: Session):
         "Pero", "Guy", "Dean", "Bethany", "Henry"
     ]
     logger.info(f"Adding {len(staff_names)} staff members...")
+    
+    for name in staff_names:
+        staff = Staff(name=name, is_active=True)
+        db.add(staff)
+    db.commit()
+    logger.info("Staff members added successfully")
 
     # Create checklists with sections and chores
     checklists_data = [
