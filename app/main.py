@@ -234,51 +234,47 @@ def get_last_reset_time(checklist_name: str, db: Session) -> Optional[datetime]:
         return None
 
 @app.get("/api/checklists/{checklist_name}/chores")
-async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
-    """Get all chores for a specific checklist."""
-    try:
-        # Get the checklist
-        checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
-        if not checklist:
-            raise HTTPException(status_code=404, detail=f"Checklist {checklist_name} not found")
-        
-        # Get all sections for this checklist
-        sections = db.query(Section).filter(Section.checklist_id == checklist.id).order_by(Section.order).all()
-        
-        # Get the last reset time
-        last_reset = get_last_reset_time(checklist_name, db)
-        
-        # Format the response as an array of chores
-        response = []
-        
-        # Add sections and their chores
-        for section in sections:
-            chores = db.query(Chore).filter(Chore.section_id == section.id).order_by(Chore.order).all()
+def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
+    """Get all chores for a checklist."""
+    checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    # Get all sections and their chores
+    sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
+    
+    chores = []
+    for section in sections:
+        section_chores = db.query(Chore).filter(Chore.section_id == section.id).all()
+        for chore in section_chores:
+            # Get the latest completion for this chore
+            completion = db.query(ChoreCompletion).filter(
+                ChoreCompletion.chore_id == chore.id
+            ).order_by(ChoreCompletion.completed_at.desc()).first()
             
-            # Add chores for this section
-            for chore in chores:
-                # Get the latest completion for this chore
-                latest_completion = db.query(ChoreCompletion).filter(
-                    ChoreCompletion.chore_id == chore.id
-                ).order_by(ChoreCompletion.completed_at.desc()).first()
-                
-                chore_data = {
-                    "id": chore.id,
-                    "description": chore.description,
-                    "order": chore.order,
-                    "section": section.name,
-                    "section_id": section.id,
-                    "completed": latest_completion.completed if latest_completion else False,
-                    "completed_by": latest_completion.staff_name if latest_completion else None,
-                    "completed_at": latest_completion.completed_at.isoformat() if latest_completion else None,
-                    "comment": latest_completion.comment if latest_completion else None
-                }
-                response.append(chore_data)
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error getting checklist chores: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+            chore_data = {
+                "id": chore.id,
+                "description": chore.description,
+                "order": chore.order,
+                "section": section.name,
+                "section_id": section.id,
+                "completed": False,
+                "completed_by": None,
+                "completed_at": None,
+                "comment": None
+            }
+            
+            if completion:
+                chore_data.update({
+                    "completed": True,
+                    "completed_by": completion.staff_name,
+                    "completed_at": completion.completed_at.isoformat(),
+                    "comment": completion.comment
+                })
+            
+            chores.append(chore_data)
+    
+    return chores
 
 @app.post("/api/chore_completion")
 async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(get_db)):
@@ -543,6 +539,11 @@ def send_telegram_message(message: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning("Telegram configuration missing, skipping notification")
         return
+
+    # Add timestamp to message
+    now = datetime.now(cet_tz)
+    time_str = now.strftime("%H:%M")
+    message = f"{message} at {time_str}"
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
