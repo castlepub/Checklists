@@ -888,4 +888,14 @@ def manual_seed(db: Session = Depends(get_db)):
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        return JSONResponse(status_code=500, content={"error": str(e), "traceback": tb}) 
+        return JSONResponse(status_code=500, content={"error": str(e), "traceback": tb})
+
+@app.get("/api/staff")
+def get_staff(db: Session = Depends(get_db)):
+    """Get all staff members."""
+    try:
+        staff = db.query(Staff.name).all()
+        return [name[0] for name in staff]
+    except Exception as e:
+        logger.error(f"Error getting staff list: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get staff list") 
