@@ -238,13 +238,15 @@ def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
     try:
         logger.info(f"Loading chores for checklist: {checklist_name}")
         
-        # Get the checklist with sections and chores in a single query
+        # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == checklist_name).first()
         if not checklist:
             logger.error(f"Checklist {checklist_name} not found")
             raise HTTPException(status_code=404, detail="Checklist not found")
 
-        # Get all sections, chores, and their latest completions in a single query
+        logger.info(f"Found checklist: {checklist.name}")
+
+        # Get all sections and their chores in a single query
         sections = (
             db.query(Section)
             .filter(Section.checklist_id == checklist.id)
@@ -252,46 +254,52 @@ def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
             .all()
         )
         
+        logger.info(f"Found {len(sections)} sections")
+
         # Get all chores and their latest completions in a single query
-        chores_with_completions = (
-            db.query(
-                Chore,
-                ChoreCompletion
+        try:
+            chores_with_completions = (
+                db.query(Chore)
+                .filter(Chore.section_id.in_([s.id for s in sections]))
+                .order_by(Chore.order)
+                .all()
             )
-            .outerjoin(
-                ChoreCompletion,
-                and_(
-                    Chore.id == ChoreCompletion.chore_id,
+            
+            logger.info(f"Found {len(chores_with_completions)} chores")
+            
+            # Process the results
+            chores = []
+            for chore in chores_with_completions:
+                section = next(s for s in sections if s.id == chore.section_id)
+                
+                # Get the latest completion
+                completion = db.query(ChoreCompletion).filter(
+                    ChoreCompletion.chore_id == chore.id,
                     ChoreCompletion.completed == True
-                )
-            )
-            .filter(Chore.section_id.in_([s.id for s in sections]))
-            .order_by(Chore.order)
-            .all()
-        )
-        
-        # Process the results
-        chores = []
-        for chore, completion in chores_with_completions:
-            section = next(s for s in sections if s.id == chore.section_id)
-            chore_data = {
-                "id": chore.id,
-                "description": chore.description,
-                "order": chore.order,
-                "section": section.name,
-                "section_id": section.id,
-                "completed": bool(completion),
-                "completed_by": completion.staff_name if completion else None,
-                "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
-                "comment": completion.comment if completion else None
-            }
-            chores.append(chore_data)
-        
-        logger.info(f"Successfully loaded {len(chores)} chores for checklist {checklist_name}")
-        return chores
-        
+                ).order_by(ChoreCompletion.completed_at.desc()).first()
+                
+                chore_data = {
+                    "id": chore.id,
+                    "description": chore.description,
+                    "order": chore.order,
+                    "section": section.name,
+                    "section_id": section.id,
+                    "completed": bool(completion),
+                    "completed_by": completion.staff_name if completion else None,
+                    "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
+                    "comment": completion.comment if completion else None
+                }
+                chores.append(chore_data)
+            
+            logger.info(f"Successfully processed {len(chores)} chores")
+            return chores
+            
+        except Exception as e:
+            logger.error(f"Error processing chores: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+            
     except Exception as e:
-        logger.error(f"Error loading chores for checklist {checklist_name}: {str(e)}", exc_info=True)
+        logger.error(f"Error loading checklist {checklist_name}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chore_completion")
@@ -809,14 +817,16 @@ def init_db():
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
         
-        # Add completed column to chore_completions if it doesn't exist
+        # Add new columns to chores table if they don't exist
         with engine.connect() as conn:
             try:
-                conn.execute(text("ALTER TABLE chore_completions ADD COLUMN IF NOT EXISTS completed BOOLEAN DEFAULT TRUE"))
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed_by VARCHAR"))
+                conn.execute(text("ALTER TABLE chores ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP"))
                 conn.commit()
-                logger.info("Added completed column to chore_completions table")
+                logger.info("Added new columns to chores table")
             except Exception as e:
-                logger.warning(f"Could not add completed column: {str(e)}")
+                logger.warning(f"Could not add new columns: {str(e)}")
         
         # Check if database needs seeding
         logger.info("Checking if database needs seeding...")
@@ -829,15 +839,13 @@ def init_db():
                     logger.info(f"Found {len(checklists)} checklists in database")
                     logger.info("Database already contains checklists, skipping seeding")
                 else:
-                    logger.info("No checklists found, seeding database...")
+                    logger.info("Database is empty, seeding initial data...")
                     seed_database(db)
                     db.commit()
                     logger.info("Database seeded successfully")
             except Exception as e:
-                logger.error(f"Error during database initialization: {str(e)}")
+                logger.error(f"Error checking/seeding database: {str(e)}")
                 raise
-            finally:
-                logger.info("Database session closed after seeding")
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
         raise
