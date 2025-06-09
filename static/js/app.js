@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
                 
                 try {
-                    const response = await fetch(`/api/reset_checklist/${checklistName}`, {
+                    const response = await fetch(window.location.origin + `/api/reset_checklist/${checklistName}`, {
                         method: 'POST'
                     });
                     
@@ -276,7 +276,7 @@ async function loadChecklist(checklistId) {
     
     try {
         console.log('Loading checklist:', checklistId);
-        const response = await fetch(`/api/checklists/${checklistId}/chores`);
+        const response = await fetch(window.location.origin + `/api/checklists/${checklistId}/chores`);
         if (!response.ok) {
             console.error('Failed to load checklist:', response.status, response.statusText);
             throw new Error('Failed to load checklist');
@@ -616,7 +616,7 @@ async function processChoreUpdateQueue() {
 
 async function handleChoreCompletion(choreId, checkbox, sectionName) {
     try {
-        const response = await fetch(`/api/chores/${choreId}/toggle`, {
+        const response = await fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -942,7 +942,7 @@ async function populateChecklistDropdown() {
         });
 
         // Then populate checklists
-        const response = await fetch('/api/checklists');
+        const response = await fetch(window.location.origin + '/api/checklists');
         const checklists = await response.json();
         
         // Clear existing options except the first one
