@@ -9,10 +9,9 @@ let totalChores = 0;
 let completedCount = 0;
 let checklistSelect;
 let staffSelect;
-let choresContainer;
+let choreContainer;
 let successSection;
 let submitChecklistBtn;
-let resetChecklistBtn;
 
 // Add achievements container to the body
 const achievementsContainer = document.createElement('div');
@@ -150,22 +149,19 @@ async function initializeApp() {
         console.log('checklistSelect:', checklistSelect);
         staffSelect = document.getElementById('staffSelect');
         console.log('staffSelect:', staffSelect);
-        choresContainer = document.getElementById('choresContainer');
-        console.log('choresContainer:', choresContainer);
+        choreContainer = document.getElementById('choreContainer');
+        console.log('choreContainer:', choreContainer);
         successSection = document.getElementById('successSection');
         console.log('successSection:', successSection);
         submitChecklistBtn = document.getElementById('submitChecklistBtn');
         console.log('submitChecklistBtn:', submitChecklistBtn);
-        resetChecklistBtn = document.getElementById('resetChecklistBtn');
-        console.log('resetChecklistBtn:', resetChecklistBtn);
         
         // Verify all required elements exist
         if (!checklistSelect) throw new Error('Checklist select element not found');
         if (!staffSelect) throw new Error('Staff select element not found');
-        if (!choresContainer) throw new Error('Chores container element not found');
+        if (!choreContainer) throw new Error('Chores container element not found');
         if (!successSection) throw new Error('Success section element not found');
         if (!submitChecklistBtn) throw new Error('Submit checklist button not found');
-        if (!resetChecklistBtn) throw new Error('Reset checklist button not found');
         
         console.log('Populating checklist dropdown...');
         await populateChecklistDropdown();
@@ -173,16 +169,23 @@ async function initializeApp() {
 
         // Add event listeners
         console.log('Adding event listeners...');
-        checklistSelect.addEventListener('change', loadChecklist);
+        checklistSelect.addEventListener('change', () => {
+            if (checklistSelect.value) {
+                loadChecklist(checklistSelect.value);
+            }
+        });
         staffSelect.addEventListener('change', updateUI);
-        submitChecklistBtn.addEventListener('click', submitChecklist);
-        resetChecklistBtn.addEventListener('click', resetChecklist);
         console.log('Event listeners added');
 
         // Initial UI update
         console.log('Performing initial UI update...');
         updateUI();
         console.log('Initial UI update complete');
+
+        // Load initial checklist if one is selected
+        if (checklistSelect.value) {
+            loadChecklist(checklistSelect.value);
+        }
 
     } catch (error) {
         console.error('Error during application initialization:', error);
@@ -198,8 +201,6 @@ async function initializeApp() {
 console.log('Starting application...');
 initializeApp().then(() => {
     console.log('Application initialization complete');
-}).catch(error => {
-    console.error('Failed to initialize application:', error);
 });
 
 function updateUI() {
@@ -223,80 +224,72 @@ function updateUI() {
     if (checklistSelected && staffSelected) {
         loadChecklist();
     } else {
-        choresContainer.classList.add('d-none');
+        choreContainer.classList.add('d-none');
         successSection.classList.add('d-none');
     }
 }
 
-async function loadChecklist() {
-    if (!checklistSelect.value || !staffSelect.value) return;
+async function loadChecklist(checklistId) {
+    if (!checklistId || !staffSelect.value) {
+        choreContainer.innerHTML = '';
+        return;
+    }
 
     try {
-        const response = await fetch(window.location.origin + `/api/checklists/${checklistSelect.value}/chores`);
-        const data = await response.json();
-        
+        const response = await fetch(`/api/get_checklist/${checklistId}`);
         if (!response.ok) {
-            throw new Error(data.detail || 'Failed to load checklist');
+            throw new Error('Failed to fetch checklist data');
         }
         
-        if (!Array.isArray(data)) {
-            console.error('Invalid response format:', data);
-            throw new Error('Invalid response format from server');
-        }
+        const data = await response.json();
+        currentChores = data.chores;
         
-        // Initialize currentChores with the fetched data
-        currentChores = data;
-        console.log('Loaded chores:', currentChores);
+        // Clear existing chores
+        choreContainer.innerHTML = '';
         
         // Render the chores
-        renderChores();
-        choresContainer.classList.remove('d-none');
+        renderChores(data.chores);
         
-        // Check if all chores are completed and update UI accordingly
-        const allCompleted = currentChores.every(chore => chore.completed);
-        if (allCompleted) {
-            successSection.classList.remove('d-none');
-        } else {
-            successSection.classList.add('d-none');
-        }
+        // Show the container
+        choreContainer.style.display = 'block';
         
-        // Update progress indicator
+        // Update progress
         updateProgressIndicator();
         
     } catch (error) {
         console.error('Error loading checklist:', error);
         alert('Failed to load checklist. Please try again.');
-        choresContainer.classList.add('d-none');
+        choreContainer.innerHTML = '';
         successSection.classList.add('d-none');
     }
 }
 
-function renderChores() {
-    choresContainer.innerHTML = '';
+function renderChores(chores) {
+    choreContainer.innerHTML = '';
     
     // Add progress display
     const progressDiv = document.createElement('div');
     progressDiv.id = 'progressDisplay';
-    choresContainer.appendChild(progressDiv);
+    choreContainer.appendChild(progressDiv);
     
     // Group chores by section
     const sections = {};
-    if (Array.isArray(currentChores)) {
-        currentChores.forEach(chore => {
+    if (Array.isArray(chores)) {
+        chores.forEach(chore => {
             if (!sections[chore.section]) {
                 sections[chore.section] = [];
             }
             sections[chore.section].push(chore);
         });
     } else {
-        console.error('currentChores is not an array:', currentChores);
+        console.error('chores is not an array:', chores);
         return;
     }
     
     // Render each section
     Object.entries(sections).forEach(([sectionName, sectionChores]) => {
         const sectionElement = renderSection(sectionName, sectionChores);
-        choresContainer.appendChild(sectionElement);
+        choreContainer.appendChild(sectionElement);
     });
     
     updateProgressIndicator();
@@ -706,12 +699,6 @@ async function submitChecklist() {
         checklistSelect.disabled = true;
         staffSelect.disabled = true;
         
-        // Remove the reset button since we're in a completed state
-        const resetBtn = document.getElementById('resetChecklistBtn');
-        if (resetBtn) {
-            resetBtn.style.display = 'none';
-        }
-        
         // Reload the page after 5 seconds
         setTimeout(() => {
             location.reload();
@@ -843,60 +830,27 @@ async function completeSection(sectionName) {
 // Populate checklist dropdown
 async function populateChecklistDropdown() {
     try {
-        console.log('Starting populateChecklistDropdown...');
-        console.log('checklistSelect element:', checklistSelect);
-        
-        console.log('Fetching checklists from:', window.location.origin + '/api/checklists');
-        const response = await fetch(window.location.origin + '/api/checklists');
-        console.log('Response:', response);
-        console.log('Response status:', response.status);
-        
+        const response = await fetch('/api/checklists');
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error('Failed to fetch checklists');
         }
         
-        const data = await response.json();
-        console.log('Received checklists data:', data);
+        const checklists = await response.json();
         
-        if (!Array.isArray(data)) {
-            throw new Error('Expected array of checklists but got: ' + typeof data);
-        }
-        
-        if (!checklistSelect) {
-            throw new Error('checklistSelect is null when trying to populate options');
-        }
-        
-        console.log('Clearing existing options...');
+        // Clear existing options except the default one
         checklistSelect.innerHTML = '<option value="">Choose a checklist...</option>';
         
-        console.log('Adding new options...');
-        data.forEach((c, index) => {
-            if (!c.name) {
-                console.warn(`Checklist at index ${index} missing name:`, c);
-                return;
-            }
+        // Add new options
+        checklists.forEach(checklist => {
             const option = document.createElement('option');
-            option.value = c.name;
-            // Format the display name
-            const displayName = c.name.charAt(0).toUpperCase() + c.name.slice(1) + ' Checklist';
-            option.textContent = displayName;
+            option.value = checklist.id;
+            option.textContent = checklist.name;
             checklistSelect.appendChild(option);
-            console.log('Added checklist option:', { name: c.name, displayName });
         });
         
-        console.log('Final checklistSelect HTML:', checklistSelect.innerHTML);
     } catch (error) {
-        console.error('Failed to load checklists:', error);
-        // Show error to user
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'alert alert-danger';
-        errorDiv.textContent = `Failed to load checklists: ${error.message}. Please refresh the page to try again.`;
-        if (checklistSelect && checklistSelect.parentNode) {
-            checklistSelect.parentNode.insertBefore(errorDiv, checklistSelect);
-        } else {
-            console.error('Could not show error to user - checklistSelect or its parent is null');
-            document.querySelector('.container').prepend(errorDiv);
-        }
+        console.error('Error populating checklist dropdown:', error);
+        alert('Failed to load checklists. Please refresh the page to try again.');
     }
 }
 
