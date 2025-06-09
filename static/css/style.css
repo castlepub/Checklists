@@ -3,8 +3,9 @@
 body {
     padding-bottom: 2rem;
     -webkit-tap-highlight-color: transparent;
-    background-color: #f8f9fa;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f2f5;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
 }
 
 /* Larger touch targets for mobile */
@@ -31,44 +32,56 @@ body {
 .chore-item {
     display: flex;
     align-items: flex-start;
-    padding: 0.5rem;
-    border-bottom: 1px solid #eee;
-    gap: 0.5rem;
-    padding: 10px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #edf2f7;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.chore-item:hover {
+    background-color: #f8fafc;
 }
 
 .chore-item:last-child {
     border-bottom: none;
-}
-
-.chore-item.completed {
-    background-color: #f8f9fa;
-}
-
-.chore-item.completed .form-check-label {
-    text-decoration: line-through;
-    color: #6c757d;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 .chore-item .form-check {
-    margin: 0;
-    padding-top: 0.25rem;
+    margin-right: 1rem;
 }
 
 .chore-item .form-check-input {
-    width: 1.25rem;
-    height: 1.25rem;
-    margin: 0;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 2px solid #cbd5e1;
+    border-radius: 6px;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chore-item .form-check-input:checked {
+    background-color: #10b981;
+    border-color: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
 }
 
 .chore-item .form-check-label {
-    margin: 0;
+    font-size: 1.05rem;
+    color: #334155;
     cursor: pointer;
-    font-size: 1rem;
-    color: #212529;
+    transition: all 0.2s ease;
+    padding-top: 0.2rem;
+}
+
+.chore-item.completed {
+    background-color: #f8fafc;
+}
+
+.chore-item.completed .form-check-label {
+    color: #94a3b8;
+    text-decoration: line-through;
 }
 
 .chore-item small {
@@ -87,53 +100,29 @@ body {
 }
 
 /* Section styles */
+.section {
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
 .section-header {
-    background-color: #f8f9fa;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    border-bottom: 2px solid #dee2e6;
+    background: #f8f9fa;
+    padding: 1rem 1.25rem;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom: 2px solid #e9ecef;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1rem;
 }
 
-.section-header .form-check {
-    margin: 0;
-    padding-top: 0.25rem;
-}
-
-.section-header .form-check-input {
-    width: 1.25rem;
-    height: 1.25rem;
-    margin: 0;
-    cursor: pointer;
-}
-
-.section-header .form-check-label {
-    margin: 0;
-    font-size: 1.1rem;
+.section-header h5 {
+    font-size: 1.2rem;
     font-weight: 600;
-    color: #495057;
-    cursor: pointer;
-}
-
-.section-header .form-check-label:hover {
-    color: #0d6efd;
-}
-
-.section-header.completed {
-    background-color: #e9ecef;
-}
-
-.section-header.completed .form-check-label {
-    text-decoration: line-through;
-    color: #6c757d;
-}
-
-.section-header h3 {
+    color: #2c3e50;
     margin: 0;
-    font-size: 1.25rem;
-    color: #495057;
 }
 
 .section-actions {
@@ -222,15 +211,22 @@ body {
 /* Comment input styling */
 .chore-comment {
     margin-top: 0.75rem;
-    margin-left: 2.75rem;
+    margin-left: 2.4rem;
 }
 
-.chore-comment .form-control {
-    border-radius: 1.5rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+.chore-comment input {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    background-color: #f8fafc;
+    transition: all 0.2s ease;
+}
+
+.chore-comment input:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+    background-color: white;
 }
 
 /* Signature pad improvements */
@@ -329,7 +325,11 @@ body {
 
     .progress-display {
         padding: 1rem;
-        gap: 1rem;
+        flex-direction: column;
+        text-align: center;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
     }
 
     .progress-emoji {
@@ -360,63 +360,67 @@ body {
         width: 100%;
         justify-content: flex-end;
     }
+
+    .chore-item {
+        padding: 1rem;
+    }
+
+    .chore-comment {
+        margin-left: 2rem;
+    }
+
+    .completion-info {
+        margin-left: 2rem;
+    }
 }
 
 /* Completion info styling */
 .completion-info {
-    margin-top: 0.25rem;
-    font-size: 0.85rem;
+    margin-left: 2.4rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: #f0fdf4;
+    border-radius: 6px;
+    border-left: 3px solid #10b981;
 }
 
 .completion-info small {
-    opacity: 0.9;
+    color: #059669;
+    font-size: 0.9rem;
 }
 
 /* Progress bar styling */
 .progress {
-    height: 0.5rem;
+    height: 0.75rem;
+    background-color: #f1f5f9;
     border-radius: 1rem;
-    background-color: #e9ecef;
+    overflow: hidden;
 }
 
 .progress-bar {
-    transition: width 0.3s ease;
-    border-radius: 1rem;
+    background: linear-gradient(135deg, #10b981, #059669);
+    transition: width 0.4s ease;
 }
 
 /* Progress Display */
 .progress-display {
-    background-color: #fff;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+    background: white;
+    padding: 1.25rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
 }
 
 .progress-emoji {
     font-size: 2.5rem;
     line-height: 1;
-    transition: transform 0.3s ease;
 }
 
 .progress-emoji.bounce {
     animation: bounce 1s ease;
-}
-
-.progress-bar {
-    flex-grow: 1;
-    height: 0.75rem;
-    background: #f8f9fa;
-    border-radius: 1rem;
-    overflow: hidden;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #28a745, #20c997);
-    border-radius: 1rem;
-    transition: width 0.5s ease;
 }
 
 .progress-text {
@@ -543,16 +547,22 @@ body {
 /* Card styles */
 .card {
     border: none;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: white;
+    margin-bottom: 1.5rem;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 }
 
 .card-header {
+    background: linear-gradient(135deg, #4a90e2, #357abd);
+    color: white;
+    border-top-left-radius: 12px !important;
+    border-top-right-radius: 12px !important;
     border-bottom: none;
     padding: 1.25rem;
 }
@@ -560,6 +570,7 @@ body {
 .card-header h5 {
     font-weight: 600;
     font-size: 1.25rem;
+    margin: 0;
 }
 
 .card-body {
@@ -588,16 +599,17 @@ body {
 
 /* Reset button */
 #resetChecklist {
-    border-width: 2px;
+    background-color: #fee2e2;
+    color: #ef4444;
+    border: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
     font-weight: 500;
-    padding: 0.75rem 1.5rem;
     transition: all 0.2s ease;
 }
 
 #resetChecklist:hover {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    color: white;
+    background-color: #fecaca;
     transform: translateY(-1px);
 }
 
@@ -614,13 +626,6 @@ body {
 }
 
 /* Section styles */
-.section {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-}
-
 .section-title {
     margin: 0;
     font-size: 1.2em;
@@ -765,62 +770,29 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
-    background-color: #fff;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-/* Card styles */
-.card {
-    border: none;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    padding: 1rem;
-}
-
-.card-header h5 {
-    margin: 0;
-    font-weight: 600;
-    color: #495057;
-}
-
-.card-body {
-    padding: 1rem;
-}
-
-/* Form controls */
-.form-select, .form-control {
-    border: 2px solid #e9ecef;
-    border-radius: 0.5rem;
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    transition: all 0.2s ease;
-    height: auto;
-}
-
-.form-select:focus, .form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
-}
-
-.form-label {
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
-    color: #495057;
-}
-
-/* Section styles */
-.section {
+    background: white;
+    padding: 1.25rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     margin-bottom: 1.5rem;
 }
 
+/* Form controls */
+.form-select {
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 1.05rem;
+    color: #334155;
+    transition: all 0.2s ease;
+}
+
+.form-select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+/* Section styles */
 .section:last-child {
     margin-bottom: 0;
 }
@@ -916,4 +888,65 @@ body {
     #achievementsContainer {
         width: calc(100% - 40px);
     }
+}
+
+/* Animation for completed items */
+@keyframes checkmark {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.chore-item .form-check-input:checked {
+    animation: checkmark 0.3s ease-in-out forwards;
+}
+
+/* Floating checkmark animation */
+@keyframes float-up {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-20px) scale(1.2);
+        opacity: 0;
+    }
+}
+
+.floating-checkmark {
+    position: absolute;
+    color: #10b981;
+    font-size: 1.5rem;
+    pointer-events: none;
+    animation: float-up 1s ease-out forwards;
+}
+
+/* Success section styling */
+.success-section {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.success-section h3 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Text muted styling */
+.text-muted {
+    color: #64748b !important;
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
 } 
