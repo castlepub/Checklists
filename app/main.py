@@ -508,7 +508,7 @@ async def reset_database(db: Session = Depends(get_db)):
             }
         )
 
-@app.post("/api/checklists/{checklist_name}/reset")
+@app.post("/api/reset_checklist/{checklist_name}")
 def reset_checklist(checklist_name: str, request: Request, db: Session = Depends(get_db)):
     """Reset a checklist by clearing all completion records."""
     try:
