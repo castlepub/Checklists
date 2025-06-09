@@ -265,11 +265,14 @@ function updateUI() {
         checklistSelect.parentNode.insertBefore(alertDiv, checklistSelect.nextSibling);
     }
     
-    if (checklistSelected && staffSelected) {
+    // Only reload checklist if it's not already loaded
+    if (checklistSelected && staffSelected && choreContainer.children.length === 0) {
         loadChecklist(checklistSelect.value);
-    } else {
+    } else if (!checklistSelected || !staffSelected) {
         choreContainer.classList.add('d-none');
         successSection.classList.add('d-none');
+    } else {
+        choreContainer.classList.remove('d-none');
     }
 }
 
@@ -611,19 +614,112 @@ function renderSection(sectionName, sectionChores) {
 async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
     const isChecked = sectionCheckbox.checked;
     const sectionName = sectionCheckbox.closest('.section').dataset.sectionName;
+    const staffName = staffSelect.value;
     
-    try {
-        // Process each checkbox sequentially to avoid race conditions
-        for (const checkbox of choreCheckboxes) {
-            if (checkbox.checked !== isChecked) {
-                checkbox.checked = isChecked;
-                await handleChoreCompletion(parseInt(checkbox.id.replace('chore-', '')), checkbox);
-            }
-        }
-    } catch (error) {
-        // If any checkbox update fails, revert the section checkbox
+    if (!staffName) {
+        alert('Please select a staff member first.');
         sectionCheckbox.checked = !isChecked;
-        sectionCheckbox.indeterminate = true;
+        return;
+    }
+
+    try {
+        // Prepare batch of chores to update
+        const choresToUpdate = Array.from(choreCheckboxes)
+            .filter(checkbox => checkbox.checked !== isChecked)
+            .map(checkbox => ({
+                choreId: parseInt(checkbox.dataset.choreId),
+                checkbox: checkbox
+            }));
+
+        if (choresToUpdate.length === 0) return;
+
+        // Optimistically update UI
+        choresToUpdate.forEach(({ checkbox }) => {
+            checkbox.checked = isChecked;
+            const choreDiv = checkbox.closest('.chore-item');
+            if (choreDiv) {
+                if (isChecked) {
+                    choreDiv.classList.add('completed');
+                    // Add completion info
+                    const completionInfo = document.createElement('div');
+                    completionInfo.className = 'completion-info text-muted ms-4';
+                    completionInfo.innerHTML = `<small>Completed by ${staffName}</small>`;
+                    choreDiv.appendChild(completionInfo);
+                } else {
+                    choreDiv.classList.remove('completed');
+                    // Remove completion info
+                    const completionInfo = choreDiv.querySelector('.completion-info');
+                    if (completionInfo) completionInfo.remove();
+                }
+            }
+        });
+
+        // Prepare batch request
+        const batchPromises = choresToUpdate.map(({ choreId }) => 
+            fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    staff_name: staffName,
+                    completed: isChecked
+                })
+            })
+        );
+
+        // Send all requests in parallel
+        const results = await Promise.allSettled(batchPromises);
+
+        // Check for any failures
+        const failures = results.filter(r => r.status === 'rejected');
+        if (failures.length > 0) {
+            console.error('Some chores failed to update:', failures);
+            // Revert UI for failed updates
+            failures.forEach((_, index) => {
+                const { checkbox } = choresToUpdate[index];
+                checkbox.checked = !isChecked;
+                const choreDiv = checkbox.closest('.chore-item');
+                if (choreDiv) {
+                    if (!isChecked) {
+                        choreDiv.classList.add('completed');
+                    } else {
+                        choreDiv.classList.remove('completed');
+                    }
+                }
+            });
+        }
+
+        // Update progress
+        updateProgressIndicator();
+
+        // Add completion animation for successful updates
+        if (isChecked) {
+            choresToUpdate.forEach(({ checkbox }) => {
+                const checkmark = document.createElement('div');
+                checkmark.className = 'floating-checkmark';
+                checkmark.textContent = '✓';
+                checkbox.parentElement.appendChild(checkmark);
+                setTimeout(() => checkmark.remove(), 1000);
+            });
+        }
+
+    } catch (error) {
+        console.error('Error updating section:', error);
+        // Revert all changes on error
+        sectionCheckbox.checked = !isChecked;
+        choreCheckboxes.forEach(checkbox => {
+            checkbox.checked = !isChecked;
+            const choreDiv = checkbox.closest('.chore-item');
+            if (choreDiv) {
+                if (!isChecked) {
+                    choreDiv.classList.add('completed');
+                } else {
+                    choreDiv.classList.remove('completed');
+                }
+            }
+        });
+        alert('Failed to update section. Please try again.');
     }
 }
 
