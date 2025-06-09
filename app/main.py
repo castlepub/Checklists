@@ -239,40 +239,33 @@ def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
         logger.info(f"Getting chores for checklist: {checklist_name}")
         
         # Get checklist and sections in a single query with eager loading
-        checklist_with_sections = (
+        checklist = (
             db.query(Checklist)
             .filter(Checklist.name == checklist_name)
             .options(joinedload(Checklist.sections))
             .first()
         )
         
-        if not checklist_with_sections:
+        if not checklist:
             logger.error(f"Checklist not found: {checklist_name}")
             raise HTTPException(status_code=404, detail="Checklist not found")
         
-        sections = sorted(checklist_with_sections.sections, key=lambda s: s.order or 0)
+        sections = sorted(checklist.sections, key=lambda s: s.order or 0)
         logger.info(f"Found {len(sections)} sections")
         
-        # Get all chores and their latest completions in a single query
-        chores_with_completions = (
-            db.query(Chore, ChoreCompletion)
-            .outerjoin(
-                ChoreCompletion,
-                and_(
-                    ChoreCompletion.chore_id == Chore.id,
-                    ChoreCompletion.completed == True
-                )
-            )
+        # Get all chores for this checklist
+        chores = (
+            db.query(Chore)
             .filter(Chore.section_id.in_([s.id for s in sections]))
             .order_by(Chore.order)
             .all()
         )
         
-        logger.info(f"Found {len(chores_with_completions)} chores")
+        logger.info(f"Found {len(chores)} chores")
         
         # Process the results
-        chores = []
-        for chore, completion in chores_with_completions:
+        chore_list = []
+        for chore in chores:
             section = next(s for s in sections if s.id == chore.section_id)
             chore_data = {
                 "id": chore.id,
@@ -280,15 +273,15 @@ def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db)):
                 "order": chore.order,
                 "section": section.name,
                 "section_id": section.id,
-                "completed": bool(completion),
-                "completed_by": completion.staff_name if completion else None,
-                "completed_at": completion.completed_at.isoformat() if completion and completion.completed_at else None,
-                "comment": completion.comment if completion else None
+                "completed": chore.completed,
+                "completed_by": chore.completed_by,
+                "completed_at": chore.completed_at.isoformat() if chore.completed_at else None,
+                "comment": None  # We'll add comment support later if needed
             }
-            chores.append(chore_data)
+            chore_list.append(chore_data)
         
-        logger.info(f"Successfully processed {len(chores)} chores")
-        return chores
+        logger.info(f"Successfully processed {len(chore_list)} chores")
+        return chore_list
         
     except Exception as e:
         logger.error(f"Error processing chores: {str(e)}", exc_info=True)
@@ -572,9 +565,11 @@ async def reset_checklist(checklist_name: str, request: Request, db: Session = D
         section_ids = [section.id for section in sections]
         chores = db.query(Chore).filter(Chore.section_id.in_(section_ids)).all()
         
-        # Delete all completion records for these chores
-        chore_ids = [chore.id for chore in chores]
-        db.query(ChoreCompletion).filter(ChoreCompletion.chore_id.in_(chore_ids)).delete()
+        # Reset all chores
+        for chore in chores:
+            chore.completed = False
+            chore.completed_by = None
+            chore.completed_at = None
         
         # Commit the changes
         db.commit()
