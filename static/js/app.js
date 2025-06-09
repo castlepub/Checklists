@@ -248,6 +248,11 @@ document.addEventListener('DOMContentLoaded', function() {
             choresList.classList.remove('d-none');
             updateSignatureSection();
             resizeSignaturePad();
+            
+            // Update task counter
+            const totalChores = currentChores.length;
+            const completedChores = currentChores.filter(chore => chore.completed).length;
+            updateProgressIndicator();
         } catch (error) {
             console.error('Error loading checklist:', error);
             alert('Failed to load checklist. Please try again.');

@@ -267,7 +267,8 @@ async def get_checklist_chores(checklist_name: str, db: Session = Depends(get_db
                     "description": chore.description,
                     "order": chore.order,
                     "section": section.name,
-                    "completed": latest_completion is not None if latest_completion else False,
+                    "section_id": section.id,
+                    "completed": latest_completion.completed if latest_completion else False,
                     "completed_by": latest_completion.staff_name if latest_completion else None,
                     "completed_at": latest_completion.completed_at.isoformat() if latest_completion else None,
                     "comment": latest_completion.comment if latest_completion else None
