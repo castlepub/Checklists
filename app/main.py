@@ -628,8 +628,9 @@ async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db))
         # Use the completed value from the request
         completed = data.get("completed")
         staff_name = data.get("staff_name")
+        comment = data.get("comment")
         
-        logger.info(f"Updating chore - completed: {completed}, staff_name: {staff_name}")
+        logger.info(f"Updating chore - completed: {completed}, staff_name: {staff_name}, comment: {comment}")
         
         if completed is None:
             logger.error("No completed value provided in request")
@@ -642,10 +643,16 @@ async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db))
         chore.completed = completed
         chore.completed_by = staff_name if completed else None
         chore.completed_at = datetime.utcnow() if completed else None
+        chore.comment = comment
 
         # Send Telegram notification
         if chore.completed:
             message = f"✅ <b>{staff_name}</b> completed: {chore.description}"
+            if comment:
+                message += f"\n💬 Comment: {comment}"
+            send_telegram_message(message)
+        elif comment:  # If there's a comment but task is not completed
+            message = f"💬 <b>{staff_name}</b> commented on {chore.description}: {comment}"
             send_telegram_message(message)
 
         db.commit()

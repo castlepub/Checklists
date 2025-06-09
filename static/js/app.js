@@ -408,12 +408,18 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
             return;
         }
 
+        // Get comment if exists
+        const choreDiv = checkbox.closest('.chore-item');
+        const commentInput = choreDiv ? choreDiv.querySelector('input[type="text"]') : null;
+        const comment = commentInput ? commentInput.value.trim() : '';
+
         // Optimistic update
         const chore = currentChores.find(c => c.id === choreId);
         if (chore) {
             chore.completed = checkbox.checked;
             chore.completed_by = staffSelect.value;
             chore.completed_at = new Date().toISOString();
+            chore.comment = comment;
         }
 
         // Add completion animation immediately
@@ -426,19 +432,29 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         }
 
         // Update UI immediately
-        const choreDiv = checkbox.closest('.chore-item');
         if (choreDiv) {
             if (checkbox.checked) {
                 choreDiv.classList.add('completed');
+                // Add completion info
+                const completionInfo = document.createElement('div');
+                completionInfo.className = 'completion-info text-muted ms-4';
+                completionInfo.innerHTML = `
+                    <small>Completed by ${staffSelect.value}</small>
+                    ${comment ? `<br><small>Comment: ${comment}</small>` : ''}
+                `;
+                choreDiv.appendChild(completionInfo);
             } else {
                 choreDiv.classList.remove('completed');
+                // Remove completion info
+                const completionInfo = choreDiv.querySelector('.completion-info');
+                if (completionInfo) completionInfo.remove();
             }
         }
 
         // Throttle API calls
         const now = Date.now();
         if (now - lastUpdateTime < UPDATE_THROTTLE) {
-            choreUpdateQueue.push({ choreId, checkbox });
+            choreUpdateQueue.push({ choreId, checkbox, comment });
             if (!isProcessingQueue) {
                 setTimeout(processChoreUpdateQueue, UPDATE_THROTTLE);
             }
@@ -453,7 +469,8 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
             },
             body: JSON.stringify({
                 staff_name: staffSelect.value,
-                completed: checkbox.checked
+                completed: checkbox.checked,
+                comment: comment
             })
         });
 
@@ -465,6 +482,7 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
                 chore.completed = !checkbox.checked;
                 chore.completed_by = null;
                 chore.completed_at = null;
+                chore.comment = '';
             }
             if (choreDiv) {
                 if (!checkbox.checked) {
@@ -516,7 +534,7 @@ async function processChoreUpdateQueue() {
     
     while (choreUpdateQueue.length > 0) {
         const batch = choreUpdateQueue.splice(0, batchSize);
-        const promises = batch.map(({ choreId, checkbox }) => 
+        const promises = batch.map(({ choreId, checkbox, comment }) => 
             fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
                 method: 'POST',
                 headers: {
@@ -524,7 +542,8 @@ async function processChoreUpdateQueue() {
                 },
                 body: JSON.stringify({
                     staff_name: staffSelect.value,
-                    completed: checkbox.checked
+                    completed: checkbox.checked,
+                    comment: comment
                 })
             })
         );
@@ -626,15 +645,21 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
         // Prepare batch of chores to update
         const choresToUpdate = Array.from(choreCheckboxes)
             .filter(checkbox => checkbox.checked !== isChecked)
-            .map(checkbox => ({
-                choreId: parseInt(checkbox.dataset.choreId),
-                checkbox: checkbox
-            }));
+            .map(checkbox => {
+                const choreDiv = checkbox.closest('.chore-item');
+                const commentInput = choreDiv ? choreDiv.querySelector('input[type="text"]') : null;
+                const comment = commentInput ? commentInput.value.trim() : '';
+                return {
+                    choreId: parseInt(checkbox.dataset.choreId),
+                    checkbox: checkbox,
+                    comment: comment
+                };
+            });
 
         if (choresToUpdate.length === 0) return;
 
         // Optimistically update UI
-        choresToUpdate.forEach(({ checkbox }) => {
+        choresToUpdate.forEach(({ checkbox, comment }) => {
             checkbox.checked = isChecked;
             const choreDiv = checkbox.closest('.chore-item');
             if (choreDiv) {
@@ -643,7 +668,10 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
                     // Add completion info
                     const completionInfo = document.createElement('div');
                     completionInfo.className = 'completion-info text-muted ms-4';
-                    completionInfo.innerHTML = `<small>Completed by ${staffName}</small>`;
+                    completionInfo.innerHTML = `
+                        <small>Completed by ${staffName}</small>
+                        ${comment ? `<br><small>Comment: ${comment}</small>` : ''}
+                    `;
                     choreDiv.appendChild(completionInfo);
                 } else {
                     choreDiv.classList.remove('completed');
@@ -655,7 +683,7 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
         });
 
         // Prepare batch request
-        const batchPromises = choresToUpdate.map(({ choreId }) => 
+        const batchPromises = choresToUpdate.map(({ choreId, comment }) => 
             fetch(window.location.origin + `/api/chores/${choreId}/toggle`, {
                 method: 'POST',
                 headers: {
@@ -663,7 +691,8 @@ async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
                 },
                 body: JSON.stringify({
                     staff_name: staffName,
-                    completed: isChecked
+                    completed: isChecked,
+                    comment: comment
                 })
             })
         );
