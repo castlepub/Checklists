@@ -374,26 +374,44 @@ async def add_chore_comment(request: ChoreCommentRequest, db: Session = Depends(
     return {"status": "success"}
 
 @app.post("/api/submit_checklist")
-async def submit_checklist(request: ChecklistSubmission, db: Session = Depends(get_db)):
-    # Get the checklist
-    checklist = db.query(Checklist).filter(Checklist.id == request.checklist_id).first()
-    if not checklist:
-        raise HTTPException(status_code=404, detail="Checklist not found")
-    
-    # Create signature
-    signature = Signature(
-        checklist_id=request.checklist_id,
-        staff_name=request.staff_name,
-        signature_data=request.signature_data,
-        signed_at=datetime.utcnow()
-    )
-    db.add(signature)
-    
-    # Send Telegram notification
-    await telegram.notify_checklist_completion(request.staff_name, checklist.name)
-    
-    db.commit()
-    return {"status": "success"}
+async def submit_checklist(submission: ChecklistSubmission, db: Session = Depends(get_db)):
+    """Submit a completed checklist."""
+    try:
+        # Get the checklist
+        checklist = db.query(Checklist).filter(Checklist.name == submission.checklist_id).first()
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+        
+        # Verify all chores are completed
+        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).all()
+        for chore in chores:
+            completion = db.query(ChoreCompletion).filter(
+                ChoreCompletion.chore_id == chore.id
+            ).order_by(ChoreCompletion.completed_at.desc()).first()
+            
+            if not completion or not completion.completed:
+                raise HTTPException(
+                    status_code=400,
+                    detail="All chores must be completed before submitting the checklist"
+                )
+        
+        # Notify via Telegram
+        try:
+            await telegram.notify_checklist_completion(
+                staff_name=submission.staff_name,
+                checklist_name=submission.checklist_id
+            )
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {str(e)}")
+            # Continue even if Telegram notification fails
+        
+        return {"status": "success", "message": "Checklist submitted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to submit checklist")
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(update: TelegramUpdate):

@@ -353,7 +353,8 @@ function renderSection(sectionName, sectionChores) {
         checkbox.className = 'form-check-input me-2';
         checkbox.checked = chore.completed;
         checkbox.dataset.choreId = chore.id;
-        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox));
+        checkbox.dataset.section = sectionName;  // Add section data attribute
+        checkbox.addEventListener('change', () => handleChoreCompletion(chore.id, checkbox, sectionName));
         
         const label = document.createElement('label');
         label.className = 'form-check-label flex-grow-1';
@@ -361,7 +362,7 @@ function renderSection(sectionName, sectionChores) {
         label.style.cursor = 'pointer';
         label.addEventListener('click', () => {
             checkbox.checked = !checkbox.checked;
-            handleChoreCompletion(chore.id, checkbox);
+            handleChoreCompletion(chore.id, checkbox, sectionName);
         });
         
         const contentDiv = document.createElement('div');
@@ -382,7 +383,7 @@ function renderSection(sectionName, sectionChores) {
     });
     
     sectionDiv.appendChild(choresList);
-    choresContainer.appendChild(sectionDiv);
+    return sectionDiv;
 }
 
 async function handleSectionCheckboxChange(sectionCheckbox, choreCheckboxes) {
@@ -548,26 +549,48 @@ async function processChoreUpdateQueue() {
     isProcessingQueue = false;
 }
 
-async function handleChoreCompletion(choreId, checkbox) {
-    // Add to queue instead of sending request immediately
-    choreUpdateQueue.push({ choreId, checkbox });
-    processChoreUpdateQueue();
-    
-    // Update progress immediately for better user feedback
-    updateProgressIndicator();
-    
-    // Add completion animation
-    if (checkbox.checked) {
-        const checkmark = document.createElement('div');
-        checkmark.className = 'floating-checkmark';
-        checkmark.textContent = '✓';
-        checkbox.parentElement.appendChild(checkmark);
+async function handleChoreCompletion(choreId, checkbox, sectionName) {
+    try {
+        const response = await fetch('/api/chore_completion', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chore_id: choreId,
+                staff_name: staffSelect.value,
+                completed: checkbox.checked
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to update chore status');
         
-        setTimeout(() => {
-            if (checkmark.isConnected) {
-                checkmark.remove();
+        // Update the chore in currentChores
+        const chore = currentChores.find(c => c.id === choreId);
+        if (chore) {
+            chore.completed = checkbox.checked;
+            chore.completed_by = staffSelect.value;
+        }
+
+        // Check if all chores in the section are completed
+        const sectionChores = currentChores.filter(c => c.section === sectionName);
+        const allSectionChoresCompleted = sectionChores.every(c => c.completed);
+        
+        // Update section checkbox
+        const sectionCheckboxes = document.querySelectorAll('.section-header input[type="checkbox"]');
+        sectionCheckboxes.forEach(cb => {
+            if (cb.closest('.section').querySelector('.section-header label').textContent === sectionName) {
+                cb.checked = allSectionChoresCompleted;
             }
-        }, 1000);
+        });
+
+        // Update UI and check for checklist completion
+        updateSignatureSection();
+        
+    } catch (error) {
+        console.error('Error updating chore:', error);
+        checkbox.checked = !checkbox.checked; // Revert the checkbox
+        alert('Failed to update chore. Please try again.');
     }
 }
 
@@ -606,13 +629,29 @@ function updateSignatureSection() {
 }
 
 function showConfetti() {
-    // Add confetti animation here if you want
-    console.log('Showing completion celebration!');
+    // Add confetti effect (you can add a confetti library later if desired)
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti-container';
+    document.body.appendChild(confetti);
+    
+    // Remove confetti after animation
+    setTimeout(() => {
+        if (confetti.parentNode) {
+            confetti.parentNode.removeChild(confetti);
+        }
+    }, 3000);
 }
 
 async function submitChecklist() {
     const staffName = staffSelect.value;
     const checklistId = checklistSelect.value;
+
+    // Check if all chores are completed
+    const allCompleted = currentChores.every(chore => chore.completed);
+    if (!allCompleted) {
+        alert('Please complete all tasks before submitting the checklist.');
+        return;
+    }
 
     try {
         const response = await fetch('/api/submit_checklist', {
@@ -628,9 +667,32 @@ async function submitChecklist() {
 
         if (!response.ok) throw new Error('Failed to submit checklist');
         
-        // Show success message and reload
-        alert('Checklist submitted successfully!');
-        location.reload();
+        // Show success message with confetti
+        showConfetti();
+        
+        // Create a success message that will stay visible
+        const successMessage = document.createElement('div');
+        successMessage.className = 'alert alert-success text-center mt-4';
+        successMessage.innerHTML = `
+            <h4 class="alert-heading">🎉 Amazing job, ${staffName}! 🎉</h4>
+            <p class="mb-0">You've completed the ${checklistSelect.options[checklistSelect.selectedIndex].text}!</p>
+        `;
+        
+        // Replace the success section with this message
+        successSection.innerHTML = '';
+        successSection.appendChild(successMessage);
+        
+        // Disable all checkboxes and the submit button
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.disabled = true;
+        });
+        submitChecklistBtn.disabled = true;
+        
+        // Reload the page after 3 seconds
+        setTimeout(() => {
+            location.reload();
+        }, 3000);
+        
     } catch (error) {
         console.error('Error submitting checklist:', error);
         alert('Failed to submit checklist. Please try again.');
@@ -791,9 +853,9 @@ async function populateChecklistDropdown() {
             }
             const option = document.createElement('option');
             option.value = c.name;
-            // Only use the part before the dash for display
-            const displayName = c.name.split('-')[0].trim();
-            option.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+            // Format the display name
+            const displayName = c.name.charAt(0).toUpperCase() + c.name.slice(1) + ' Checklist';
+            option.textContent = displayName;
             checklistSelect.appendChild(option);
             console.log('Added checklist option:', { name: c.name, displayName });
         });
@@ -878,4 +940,19 @@ function resizeSignaturePad() {
 }
 
 // Add window resize listener
-window.addEventListener('resize', resizeSignaturePad); 
+window.addEventListener('resize', resizeSignaturePad);
+
+// Add this CSS to your style.css file
+const style = document.createElement('style');
+style.textContent = `
+    .confetti-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+    }
+`;
+document.head.appendChild(style); 
