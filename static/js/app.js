@@ -307,7 +307,8 @@ function renderChores() {
     
     // Render each section
     Object.entries(sections).forEach(([sectionName, sectionChores]) => {
-        renderSection(sectionName, sectionChores);
+        const sectionElement = renderSection(sectionName, sectionChores);
+        choresContainer.appendChild(sectionElement);
     });
     
     updateProgressIndicator();
