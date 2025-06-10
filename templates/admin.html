@@ -58,7 +58,7 @@
                         <div class="list-group">
                             {% for checklist in checklists %}
                             <div class="list-group-item d-flex justify-content-between align-items-center">
-                                {{ checklist.name }}
+                                {{ checklist.name or "Unnamed Checklist" }}
                                 <button class="btn btn-sm btn-danger" onclick="deleteChecklist('{{ checklist.id }}')">Delete</button>
                             </div>
                             {% endfor %}
@@ -77,24 +77,28 @@
                     <div class="card-body">
                         {% for checklist in checklists %}
                         <div class="checklist-section">
-                            <h4>{{ checklist.name }}</h4>
-                            {% for section, chores in checklist.grouped_chores.items() %}
-                            <div class="section-header">
-                                <strong>{{ section }}</strong>
-                            </div>
-                            {% for chore in chores %}
-                            <div class="chore-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <span class="me-2">#{{ chore.order }}</span>
-                                    {{ chore.description }}
+                            <h4>{{ checklist.name or "Unnamed Checklist" }}</h4>
+                            {% if checklist.grouped_chores %}
+                                {% for section, chores in checklist.grouped_chores.items() %}
+                                <div class="section-header">
+                                    <strong>{{ section or "Uncategorized" }}</strong>
                                 </div>
-                                <div>
-                                    <button class="btn btn-sm btn-primary me-1" onclick="editChore('{{ chore.id }}')">Edit</button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteChore('{{ chore.id }}')">Delete</button>
+                                {% for chore in chores %}
+                                <div class="chore-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="me-2">#{{ chore.order or 0 }}</span>
+                                        {{ chore.description or "No description" }}
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-primary me-1" onclick="editChore('{{ chore.id }}')">Edit</button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteChore('{{ chore.id }}')">Delete</button>
+                                    </div>
                                 </div>
-                            </div>
-                            {% endfor %}
-                            {% endfor %}
+                                {% endfor %}
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted">No chores found for this checklist.</p>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>

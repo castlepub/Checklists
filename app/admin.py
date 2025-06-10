@@ -7,8 +7,14 @@ from typing import List, Dict
 from itertools import groupby
 import secrets
 import os
+import logging
+import traceback
 from .database import get_db
 from .models import Checklist, Chore
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 security = HTTPBasic()
@@ -31,35 +37,56 @@ def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 def group_chores_by_section(chores):
-    # Sort chores by section to prepare for grouping
-    sorted_chores = sorted(chores, key=lambda x: x.section)
-    # Group chores by section
-    grouped = {}
-    for section, items in groupby(sorted_chores, key=lambda x: x.section):
-        grouped[section] = list(items)
-    return grouped
+    try:
+        # Sort chores by section to prepare for grouping
+        sorted_chores = sorted(chores, key=lambda x: (x.section or ""))  # Handle None sections
+        # Group chores by section
+        grouped = {}
+        for section, items in groupby(sorted_chores, key=lambda x: (x.section or "")):
+            grouped[section] = list(items)
+        return grouped
+    except Exception as e:
+        logger.error(f"Error in group_chores_by_section: {str(e)}")
+        logger.error(traceback.format_exc())
+        return {}
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, username: str = Depends(verify_admin), db: Session = Depends(get_db)):
-    checklists = db.query(Checklist).all()
-    # Create a dictionary to store grouped chores for each checklist
-    checklist_data = []
-    for checklist in checklists:
-        grouped_chores = group_chores_by_section(checklist.chores)
-        checklist_data.append({
-            "id": checklist.id,
-            "name": checklist.name,
-            "grouped_chores": grouped_chores
-        })
-    
-    return templates.TemplateResponse(
-        "admin.html",
-        {
-            "request": request,
-            "checklists": checklist_data,
-            "username": username
-        }
-    )
+    try:
+        logger.info("Fetching checklists from database...")
+        checklists = db.query(Checklist).all()
+        logger.info(f"Found {len(checklists)} checklists")
+        
+        # Create a dictionary to store grouped chores for each checklist
+        checklist_data = []
+        for checklist in checklists:
+            try:
+                logger.info(f"Processing checklist: {checklist.name}")
+                logger.info(f"Number of chores: {len(checklist.chores)}")
+                grouped_chores = group_chores_by_section(checklist.chores)
+                checklist_data.append({
+                    "id": checklist.id,
+                    "name": checklist.name,
+                    "grouped_chores": grouped_chores
+                })
+            except Exception as e:
+                logger.error(f"Error processing checklist {checklist.name}: {str(e)}")
+                logger.error(traceback.format_exc())
+                continue
+        
+        logger.info("Rendering admin template...")
+        return templates.TemplateResponse(
+            "admin.html",
+            {
+                "request": request,
+                "checklists": checklist_data,
+                "username": username
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in admin_page: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/admin/checklist/add")
 async def add_checklist(
