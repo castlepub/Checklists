@@ -31,31 +31,8 @@ const encouragements = [
     { threshold: 1, emoji: "🎉", message: "Amazing work!" }
 ];
 
-const funFacts = [
-    "Did you know? The oldest pub in England is Ye Olde Man & Scythe in Bolton, dating back to 1251!",
-    "The world's strongest beer is 'Snake Venom' at 67.5% alcohol by volume!",
-    "The first beer was brewed in Mesopotamia around 4000 BC!",
-    "The most expensive beer ever sold was a bottle of 'Allsopp's Arctic Ale' for $503,300!",
-    "The longest bar in the world is in New Orleans, measuring 130.6 meters!",
-    "The first Oktoberfest was actually a wedding celebration for Crown Prince Ludwig in 1810!",
-    "The term 'pub' comes from 'public house'!",
-    "The world's largest beer festival is Oktoberfest in Munich!",
-    "The first beer cans were introduced in 1935!",
-    "The world's most popular beer style is lager!"
-];
-
-let lastFunFactIndex = -1;
 let achievementsShown = new Set();
 let lastProgressThreshold = 0;
-
-function getRandomFunFact() {
-    let index;
-    do {
-        index = Math.floor(Math.random() * funFacts.length);
-    } while (index === lastFunFactIndex);
-    lastFunFactIndex = index;
-    return funFacts[index];
-}
 
 function showAchievement(title, message, type = 'milestone') {
     const achievementId = `${title}-${message}`;
@@ -1023,31 +1000,6 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-// Fun buttons functionality
-async function fetchFunFact() {
-    try {
-        const response = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random');
-        const data = await response.json();
-        return `💡 ${data.text}`;
-    } catch (error) {
-        return "Could not fetch fun fact at this time.";
-    }
-}
-
-function showFunContent(content) {
-    const funContent = document.getElementById('funContent');
-    funContent.textContent = content;
-    funContent.classList.remove('show');
-    void funContent.offsetWidth; // Trigger reflow
-    funContent.classList.add('show');
-}
-
-// Event listeners for fun buttons
-document.getElementById('funFactButton').addEventListener('click', async () => {
-    const funFact = await fetchFunFact();
-    showFunContent(funFact);
-});
 
 // Add progress update to existing functions
 function displayChores(chores) {
