@@ -3,7 +3,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict
+from itertools import groupby
 import secrets
 import os
 from .database import get_db
@@ -29,14 +30,33 @@ def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
         )
     return credentials.username
 
+def group_chores_by_section(chores):
+    # Sort chores by section to prepare for grouping
+    sorted_chores = sorted(chores, key=lambda x: x.section)
+    # Group chores by section
+    grouped = {}
+    for section, items in groupby(sorted_chores, key=lambda x: x.section):
+        grouped[section] = list(items)
+    return grouped
+
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, username: str = Depends(verify_admin), db: Session = Depends(get_db)):
     checklists = db.query(Checklist).all()
+    # Create a dictionary to store grouped chores for each checklist
+    checklist_data = []
+    for checklist in checklists:
+        grouped_chores = group_chores_by_section(checklist.chores)
+        checklist_data.append({
+            "id": checklist.id,
+            "name": checklist.name,
+            "grouped_chores": grouped_chores
+        })
+    
     return templates.TemplateResponse(
         "admin.html",
         {
             "request": request,
-            "checklists": checklists,
+            "checklists": checklist_data,
             "username": username
         }
     )

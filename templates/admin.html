@@ -78,7 +78,7 @@
                         {% for checklist in checklists %}
                         <div class="checklist-section">
                             <h4>{{ checklist.name }}</h4>
-                            {% for section, chores in checklist.chores|groupby('section') %}
+                            {% for section, chores in checklist.grouped_chores.items() %}
                             <div class="section-header">
                                 <strong>{{ section }}</strong>
                             </div>
