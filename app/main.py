@@ -46,6 +46,7 @@ from .database import get_db, engine, Base, test_db_connection, SessionLocal
 from .models import Checklist, Chore, ChoreCompletion, Signature, Section, Staff
 from .telegram import telegram, cet_tz
 from .seed_data import seed_database
+from .admin import router as admin_router  # Import the admin router
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -116,6 +117,9 @@ app = FastAPI(
     docs_url=None,  # Disable docs in production
     redoc_url=None  # Disable redoc in production
 )
+
+# Include the admin router
+app.include_router(admin_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
