@@ -405,7 +405,7 @@ async function handleChoreCompletion(choreId, checkbox, sectionName) {
         // Update progress
         updateProgress();
         
-        // Update section checkbox
+        // Update section checkbox using safe ID
         updateSectionCheckbox(sectionName);
         
     } catch (error) {
@@ -462,10 +462,13 @@ function renderSection(sectionName, sectionChores) {
     sectionDiv.dataset.sectionName = sectionName;
     sectionDiv.dataset.sectionId = sectionChores[0]?.section_id;
 
+    // Create a safe ID for the section
+    const safeSectionId = `section-${sectionName.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+
     const sectionHeader = document.createElement('div');
     sectionHeader.className = 'card-header bg-light d-flex align-items-center gap-2';
     sectionHeader.innerHTML = `
-        <input type="checkbox" class="form-check-input" ${sectionChores.every(chore => chore.completed) ? 'checked' : ''}>
+        <input type="checkbox" class="form-check-input" id="${safeSectionId}" ${sectionChores.every(chore => chore.completed) ? 'checked' : ''}>
         <h5 class="mb-0 flex-grow-1">${sectionName}</h5>
     `;
 
@@ -479,8 +482,8 @@ function renderSection(sectionName, sectionChores) {
     const choresHTML = sectionChores.map(chore => `
         <div class="chore-item mb-2 ${chore.completed ? 'completed' : ''}">
             <div class="d-flex align-items-start gap-2">
-                <input type="checkbox" class="form-check-input mt-1" id="chore-${chore.id}"
-                       ${chore.completed ? 'checked' : ''} data-chore-id="${chore.id}">
+                <input type="checkbox" class="form-check-input mt-1 chore-checkbox" id="chore-${chore.id}"
+                       ${chore.completed ? 'checked' : ''} data-chore-id="${chore.id}" data-section="${sectionName}">
                 <label class="form-check-label flex-grow-1" for="chore-${chore.id}">
                     ${chore.description}
                 </label>
@@ -726,9 +729,12 @@ function renderChore(chore) {
 }
 
 function updateSectionCheckbox(sectionName) {
-    const sectionCheckbox = document.querySelector(`#section-${sectionName.replace(/\s+/g, '-')}`);
+    // Create the same safe ID as in renderSection
+    const safeSectionId = `section-${sectionName.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+    const sectionCheckbox = document.getElementById(safeSectionId);
     if (!sectionCheckbox) return;
 
+    // Use a more specific selector for chore checkboxes
     const choreCheckboxes = Array.from(document.querySelectorAll(`.chore-checkbox[data-section="${sectionName}"]`));
     const allChecked = choreCheckboxes.every(cb => cb.checked);
     const someChecked = choreCheckboxes.some(cb => cb.checked);
@@ -1035,4 +1041,9 @@ async function populateStaffDropdown() {
         console.error('Error populating staff dropdown:', error);
         throw new Error('Failed to load staff list');
     }
+}
+
+// Helper function to create safe IDs
+function createSafeId(prefix, name) {
+    return `${prefix}-${name.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 } 
