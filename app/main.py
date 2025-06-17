@@ -351,6 +351,11 @@ async def complete_chore(request: ChoreCompletionRequest, db: Session = Depends(
             )
             db.add(completion)
         
+        # Update the chore's completion state
+        chore.completed = request.completed
+        chore.completed_by = request.staff_name
+        chore.completed_at = datetime.now(cet_tz)
+        
         db.commit()
         
         # Send Telegram notification
@@ -477,19 +482,29 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
             logger.error(f"Checklist not found: {submission.checklist_id}")
             raise HTTPException(status_code=404, detail="Checklist not found")
         
-        # Verify all chores are completed
-        chores = db.query(Chore).filter(Chore.checklist_id == checklist.id).all()
-        for chore in chores:
-            completion = db.query(ChoreCompletion).filter(
-                ChoreCompletion.chore_id == chore.id
-            ).order_by(ChoreCompletion.completed_at.desc()).first()
-            
-            if not completion or not completion.completed:
-                logger.error(f"Chore {chore.id} not completed")
-                raise HTTPException(
-                    status_code=400,
-                    detail="All chores must be completed before submitting the checklist"
-                )
+        # Get all sections and chores
+        sections = db.query(Section).filter(Section.checklist_id == checklist.id).all()
+        all_chores_completed = True
+        incomplete_chores = []
+        
+        for section in sections:
+            chores = db.query(Chore).filter(Chore.section_id == section.id).all()
+            for chore in chores:
+                completion = db.query(ChoreCompletion).filter(
+                    ChoreCompletion.chore_id == chore.id,
+                    ChoreCompletion.completed == True
+                ).order_by(ChoreCompletion.completed_at.desc()).first()
+                
+                if not completion:
+                    all_chores_completed = False
+                    incomplete_chores.append(f"{section.name}: {chore.description}")
+        
+        if not all_chores_completed:
+            logger.error(f"Incomplete chores found: {incomplete_chores}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"The following chores are not completed:\n" + "\n".join(incomplete_chores)
+            )
         
         pdf_url = None
         if submission.generate_pdf:
@@ -498,53 +513,29 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
             
             if submission.save_to_dropbox:
                 # Upload to Dropbox
-                pdf_url = upload_to_dropbox(pdf_path, submission.checklist_id, submission.staff_name)
+                pdf_url = upload_to_dropbox(pdf_path, checklist.name, submission.staff_name)
             
             # Clean up temporary file
             try:
-                os.unlink(pdf_path)
-            except:
-                pass
+                os.remove(pdf_path)
+            except Exception as e:
+                logger.warning(f"Failed to remove temporary PDF file: {str(e)}")
         
-        # Notify via Telegram
-        try:
-            logger.info("Preparing to send Telegram notification")
-            message = f"✅ Checklist '{submission.checklist_id}' completed by {submission.staff_name}"
-            if pdf_url:
-                message += f"\n📄 Report: {pdf_url}"
-            logger.info(f"Sending Telegram message: {message}")
-            
-            # Log Telegram configuration
-            logger.info(f"Telegram bot token present: {bool(os.getenv('TELEGRAM_BOT_TOKEN'))}")
-            logger.info(f"Telegram chat ID present: {bool(os.getenv('TELEGRAM_CHAT_ID'))}")
-            
-            success = await telegram.notify_checklist_completion(
-                staff_name=submission.staff_name,
-                checklist_name=submission.checklist_id,
-                message=message
-            )
-            
-            if not success:
-                logger.error("Failed to send Telegram notification")
-            else:
-                logger.info("Telegram notification sent successfully")
-                
-        except Exception as e:
-            logger.error(f"Failed to send Telegram notification: {str(e)}", exc_info=True)
-            # Continue even if Telegram notification fails
+        # Send Telegram notification for checklist completion
+        time_str = datetime.now(cet_tz).strftime("%H:%M")
+        message = f"🎉 {submission.staff_name} completed checklist '{checklist.name}' at {time_str}"
+        if pdf_url:
+            message += f"\n📄 PDF Report: {pdf_url}"
+        send_telegram_message(message)
         
-        # Don't reset the checklist, just return success
         return {
             "status": "success",
             "message": "Checklist submitted successfully",
             "pdf_url": pdf_url
         }
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error submitting checklist: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to submit checklist")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(update: TelegramUpdate):
@@ -829,6 +820,10 @@ async def complete_section(section_id: int, data: dict, db: Session = Depends(ge
         # Complete all chores in the section
         comments = []
         for chore in chores:
+            # Skip if already completed
+            if chore.completed and chore.completed_at and chore.completed_at.date() == now.date():
+                continue
+                
             # Create or update completion
             completion = db.query(ChoreCompletion).filter(
                 ChoreCompletion.chore_id == chore.id,
@@ -854,6 +849,11 @@ async def complete_section(section_id: int, data: dict, db: Session = Depends(ge
                 if data.get('comment'):
                     comments.append(f"• {chore.description}: {data.get('comment')}")
                 db.add(completion)
+            
+            # Update chore state
+            chore.completed = True
+            chore.completed_by = staff_name
+            chore.completed_at = datetime.now(cet_tz)
         
         db.commit()
         
