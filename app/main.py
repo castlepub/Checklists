@@ -469,9 +469,12 @@ def upload_to_dropbox(file_path: str, checklist_name: str, staff_name: str) -> s
 async def submit_checklist(submission: ChecklistSubmission, db: Session = Depends(get_db)):
     """Submit a completed checklist."""
     try:
+        logger.info(f"Received checklist submission: {submission}")
+        
         # Get the checklist
         checklist = db.query(Checklist).filter(Checklist.name == submission.checklist_id).first()
         if not checklist:
+            logger.error(f"Checklist not found: {submission.checklist_id}")
             raise HTTPException(status_code=404, detail="Checklist not found")
         
         # Verify all chores are completed
@@ -482,6 +485,7 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
             ).order_by(ChoreCompletion.completed_at.desc()).first()
             
             if not completion or not completion.completed:
+                logger.error(f"Chore {chore.id} not completed")
                 raise HTTPException(
                     status_code=400,
                     detail="All chores must be completed before submitting the checklist"
@@ -504,14 +508,32 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
         
         # Notify via Telegram
         try:
-            await telegram.notify_checklist_completion(
+            logger.info("Preparing to send Telegram notification")
+            message = f"✅ Checklist '{submission.checklist_id}' completed by {submission.staff_name}"
+            if pdf_url:
+                message += f"\n📄 Report: {pdf_url}"
+            logger.info(f"Sending Telegram message: {message}")
+            
+            # Log Telegram configuration
+            logger.info(f"Telegram bot token present: {bool(os.getenv('TELEGRAM_BOT_TOKEN'))}")
+            logger.info(f"Telegram chat ID present: {bool(os.getenv('TELEGRAM_CHAT_ID'))}")
+            
+            success = await telegram.notify_checklist_completion(
                 staff_name=submission.staff_name,
-                checklist_name=submission.checklist_id
+                checklist_name=submission.checklist_id,
+                message=message
             )
+            
+            if not success:
+                logger.error("Failed to send Telegram notification")
+            else:
+                logger.info("Telegram notification sent successfully")
+                
         except Exception as e:
-            logger.error(f"Failed to send Telegram notification: {str(e)}")
+            logger.error(f"Failed to send Telegram notification: {str(e)}", exc_info=True)
             # Continue even if Telegram notification fails
         
+        # Don't reset the checklist, just return success
         return {
             "status": "success",
             "message": "Checklist submitted successfully",

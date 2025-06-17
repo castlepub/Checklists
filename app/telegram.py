@@ -61,16 +61,20 @@ class TelegramNotifier:
     async def send_message(self, text: str):
         if not self.bot_token or not self.chat_id:
             logger.error("Telegram message not sent - missing credentials")
+            logger.error(f"Bot token present: {bool(self.bot_token)}")
+            logger.error(f"Chat ID present: {bool(self.chat_id)}")
             return
 
         async with aiohttp.ClientSession() as session:
             try:
                 logger.info(f"Sending Telegram message to chat {self.chat_id}: {text}")
+                logger.info(f"Using API URL: {self.send_message_url}")
                 
                 # Ensure chat_id is a string and properly formatted
                 chat_id = str(self.chat_id).strip()
                 if not chat_id.startswith('-'):
                     chat_id = f"-{chat_id}"
+                    logger.info(f"Formatted chat ID: {chat_id}")
                 
                 async with session.post(
                     self.send_message_url,
@@ -100,6 +104,7 @@ class TelegramNotifier:
                 logger.error(f"Telegram HTTP error: {str(e)}")
             except Exception as e:
                 logger.error(f"Error sending Telegram message: {str(e)}")
+                logger.error(f"Full error details: {str(e)}", exc_info=True)
 
     async def notify_chore_completion(self, staff_name: str, chore_description: str):
         time = datetime.now(cet_tz).strftime("%H:%M")
@@ -113,11 +118,24 @@ class TelegramNotifier:
         logger.info(f"Notifying chore uncomplete: {message}")
         await self.send_message(message)
 
-    async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
-        time = datetime.now(cet_tz).strftime("%H:%M")
-        message = f"{staff_name} COMPLETED FULL {checklist_name} at {time} ✅"
-        logger.info(f"Notifying checklist completion: {message}")
-        await self.send_message(message)
+    async def notify_checklist_completion(self, staff_name: str, checklist_name: str, message: str = None):
+        """Notify about checklist completion with optional custom message."""
+        try:
+            if not message:
+                time = datetime.now(cet_tz).strftime("%H:%M")
+                message = f"✅ {staff_name} completed checklist '{checklist_name}' at {time}"
+            
+            logger.info(f"Notifying checklist completion: {message}")
+            result = await self.send_message(message)
+            
+            if not result or not result.get('ok'):
+                logger.error(f"Failed to send checklist completion notification: {result}")
+                return False
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error in notify_checklist_completion: {str(e)}")
+            return False
 
 # Create the Telegram notifier instance
 try:
@@ -131,7 +149,11 @@ except Exception as e:
             logger.warning(f"Would have sent Telegram message (but bot not configured): {text}")
         async def notify_chore_completion(self, staff_name: str, chore_description: str):
             logger.warning(f"Would have notified completion: {staff_name} - {chore_description}")
-        async def notify_checklist_completion(self, staff_name: str, checklist_name: str):
-            logger.warning(f"Would have notified checklist completion: {staff_name} - {checklist_name}")
+        async def notify_checklist_completion(self, staff_name: str, checklist_name: str, message: str = None):
+            if message:
+                logger.warning(f"Would have notified checklist completion with message: {message}")
+            else:
+                logger.warning(f"Would have notified checklist completion: {staff_name} - {checklist_name}")
+            return True
     telegram = DummyNotifier()
     logger.info("Using dummy notifier due to initialization failure") 
