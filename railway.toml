@@ -4,10 +4,8 @@ buildCommand = "pip install -r requirements.txt"
 
 [deploy]
 startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-healthcheckPath = "/"
+healthcheckPath = "/up"
 healthcheckTimeout = 100
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
 
 [phases.setup]
 nixPkgs = ["wkhtmltopdf"]
