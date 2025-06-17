@@ -133,8 +133,8 @@ async def root(request: Request):
 
 # Health check endpoints
 @app.get("/up")
-async def up_check():
-    """Simple health check endpoint that returns immediately."""
+async def health_check():
+    """Health check endpoint for Railway."""
     return {"status": "ok"}
 
 @app.get("/health")
