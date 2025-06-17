@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Default to port 8080 if PORT is not set
-PORT=${PORT:-8080}
+# Default to port 8000 if PORT is not set
+PORT=${PORT:-8000}
 
 # Log the port we're using
 echo "Starting application on port $PORT"
