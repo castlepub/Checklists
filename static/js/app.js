@@ -17,6 +17,8 @@ let clearSignatureBtn;
 let resetChecklistBtn;
 let lastUpdateTime = 0;
 const UPDATE_THROTTLE = 300; // Minimum time between updates in ms
+const REFRESH_INTERVAL = 30000; // Refresh every 30 seconds
+let wsConnection = null;
 
 // Add achievements container to the body
 const achievementsContainer = document.createElement('div');
@@ -97,6 +99,42 @@ function updateProgress() {
     } else {
         successSection.classList.add('d-none');
     }
+}
+
+// Add WebSocket connection
+function initializeWebSocket() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/checklist`;
+    
+    wsConnection = new WebSocket(wsUrl);
+    
+    wsConnection.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chore_update') {
+            // Update the specific chore
+            const chore = currentChores.find(c => c.id === data.chore_id);
+            if (chore) {
+                chore.completed = data.completed;
+                chore.completed_by = data.completed_by;
+                chore.completed_at = data.completed_at;
+                updateUI();
+            }
+        }
+    };
+    
+    wsConnection.onclose = function() {
+        // Try to reconnect after 5 seconds
+        setTimeout(initializeWebSocket, 5000);
+    };
+}
+
+// Add periodic refresh
+function startPeriodicRefresh() {
+    setInterval(async () => {
+        if (checklistSelect.value) {
+            await loadChecklist(checklistSelect.value);
+        }
+    }, REFRESH_INTERVAL);
 }
 
 // Initialize the application
@@ -188,6 +226,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (checklistSelect.value) {
             loadChecklist(checklistSelect.value);
         }
+
+        // Initialize WebSocket and periodic refresh
+        initializeWebSocket();
+        startPeriodicRefresh();
 
         console.log('Application initialization complete');
     } catch (error) {
@@ -801,6 +843,12 @@ async function submitChecklist() {
             return;
         }
 
+        // Show loading state
+        const submitBtn = document.querySelector('#successSection button');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
+
         const response = await fetch('/api/submit_checklist', {
             method: 'POST',
             headers: {
@@ -808,7 +856,9 @@ async function submitChecklist() {
             },
             body: JSON.stringify({
                 checklist_id: checklistId,
-                staff_name: staffName
+                staff_name: staffName,
+                generate_pdf: true,
+                save_to_dropbox: true
             })
         });
 
@@ -816,14 +866,25 @@ async function submitChecklist() {
             throw new Error('Failed to submit checklist');
         }
 
-        // Show success message
-        alert('Checklist submitted successfully!');
+        const result = await response.json();
+        
+        // Show success message with download link if PDF was generated
+        if (result.pdf_url) {
+            alert(`Checklist submitted successfully! PDF report has been saved to Dropbox and can be downloaded here: ${result.pdf_url}`);
+        } else {
+            alert('Checklist submitted successfully!');
+        }
         
         // Reload the page to show fresh checklist
         location.reload();
     } catch (error) {
         console.error('Error submitting checklist:', error);
         alert('Failed to submit checklist. Please try again.');
+    } finally {
+        // Reset button state
+        const submitBtn = document.querySelector('#successSection button');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 }
 

@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text, and_, func
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime, time, timedelta
 import os
@@ -14,6 +14,11 @@ import logging
 import pytz
 import requests
 from sqlalchemy import inspect
+import pdfkit
+import dropbox
+from jinja2 import Environment, FileSystemLoader
+import tempfile
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -215,6 +220,8 @@ class ChoreCommentRequest(BaseModel):
 class ChecklistSubmission(BaseModel):
     checklist_id: str
     staff_name: str
+    generate_pdf: bool = False
+    save_to_dropbox: bool = False
 
 class TelegramUpdate(BaseModel):
     """Simplified Telegram Update model"""
@@ -389,6 +396,75 @@ async def add_chore_comment(request: ChoreCommentRequest, db: Session = Depends(
     
     return {"status": "success"}
 
+def generate_pdf_report(checklist: Checklist, staff_name: str, db: Session) -> str:
+    """Generate a PDF report for the completed checklist."""
+    try:
+        # Get all sections and chores
+        sections = db.query(Section).filter(Section.checklist_id == checklist.id).order_by(Section.order).all()
+        chores_by_section = {}
+        
+        for section in sections:
+            chores = db.query(Chore).filter(Chore.section_id == section.id).order_by(Chore.order).all()
+            chores_with_completion = []
+            for chore in chores:
+                completion = db.query(ChoreCompletion).filter(
+                    ChoreCompletion.chore_id == chore.id
+                ).order_by(ChoreCompletion.completed_at.desc()).first()
+                
+                chores_with_completion.append({
+                    'description': chore.description,
+                    'completed': completion.completed if completion else False,
+                    'completed_by': completion.staff_name if completion else None,
+                    'completed_at': completion.completed_at.strftime('%Y-%m-%d %H:%M:%S') if completion and completion.completed_at else None,
+                    'comment': completion.comment if completion else None
+                })
+            
+            chores_by_section[section.name] = chores_with_completion
+
+        # Load template
+        env = Environment(loader=FileSystemLoader('templates'))
+        template = env.get_template('checklist_report.html')
+        
+        # Render HTML
+        html_content = template.render(
+            checklist_name=checklist.name,
+            staff_name=staff_name,
+            date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            sections=chores_by_section
+        )
+        
+        # Create temporary file for PDF
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            # Generate PDF
+            pdfkit.from_string(html_content, tmp.name)
+            return tmp.name
+            
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate PDF report")
+
+def upload_to_dropbox(file_path: str, checklist_name: str, staff_name: str) -> str:
+    """Upload a file to Dropbox and return the shared link."""
+    try:
+        # Initialize Dropbox client
+        dbx = dropbox.Dropbox(os.getenv('DROPBOX_ACCESS_TOKEN'))
+        
+        # Create folder path
+        folder_path = f"/checklist_reports/{datetime.now().strftime('%Y-%m-%d')}"
+        
+        # Upload file
+        file_name = f"{checklist_name}_{staff_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        with open(file_path, 'rb') as f:
+            dbx.files_upload(f.read(), f"{folder_path}/{file_name}")
+        
+        # Create shared link
+        shared_link = dbx.sharing_create_shared_link(f"{folder_path}/{file_name}")
+        return shared_link.url
+        
+    except Exception as e:
+        logger.error(f"Error uploading to Dropbox: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to upload to Dropbox")
+
 @app.post("/api/submit_checklist")
 async def submit_checklist(submission: ChecklistSubmission, db: Session = Depends(get_db)):
     """Submit a completed checklist."""
@@ -411,6 +487,21 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
                     detail="All chores must be completed before submitting the checklist"
                 )
         
+        pdf_url = None
+        if submission.generate_pdf:
+            # Generate PDF report
+            pdf_path = generate_pdf_report(checklist, submission.staff_name, db)
+            
+            if submission.save_to_dropbox:
+                # Upload to Dropbox
+                pdf_url = upload_to_dropbox(pdf_path, submission.checklist_id, submission.staff_name)
+            
+            # Clean up temporary file
+            try:
+                os.unlink(pdf_path)
+            except:
+                pass
+        
         # Notify via Telegram
         try:
             await telegram.notify_checklist_completion(
@@ -421,7 +512,11 @@ async def submit_checklist(submission: ChecklistSubmission, db: Session = Depend
             logger.error(f"Failed to send Telegram notification: {str(e)}")
             # Continue even if Telegram notification fails
         
-        return {"status": "success", "message": "Checklist submitted successfully"}
+        return {
+            "status": "success",
+            "message": "Checklist submitted successfully",
+            "pdf_url": pdf_url
+        }
         
     except HTTPException:
         raise
@@ -611,55 +706,64 @@ def send_telegram_message(message: str):
         logger.error(f"Failed to send Telegram message: {str(e)}")
         # Don't raise the exception, just log it
 
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/checklist")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Handle any incoming messages if needed
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+# Modify the chore completion endpoint to broadcast updates
 @app.post("/api/chores/{chore_id}/toggle")
 async def toggle_chore(chore_id: int, data: dict, db: Session = Depends(get_db)):
     try:
-        logger.info(f"Toggling chore {chore_id} with data: {data}")
-        
         chore = db.query(Chore).filter(Chore.id == chore_id).first()
         if not chore:
-            logger.error(f"Chore {chore_id} not found")
             raise HTTPException(status_code=404, detail="Chore not found")
 
-        # Log current state
-        logger.info(f"Current chore state - completed: {chore.completed}, completed_by: {chore.completed_by}")
-        
-        # Use the completed value from the request
-        completed = data.get("completed")
-        staff_name = data.get("staff_name")
-        comment = data.get("comment")
-        
-        logger.info(f"Updating chore - completed: {completed}, staff_name: {staff_name}, comment: {comment}")
-        
-        if completed is None:
-            logger.error("No completed value provided in request")
-            raise HTTPException(status_code=400, detail="completed field is required")
-            
-        if not staff_name:
-            logger.error("No staff_name provided in request")
-            raise HTTPException(status_code=400, detail="staff_name is required")
-
-        chore.completed = completed
-        chore.completed_by = staff_name if completed else None
-        chore.completed_at = datetime.utcnow() if completed else None
-        chore.comment = comment
-
-        # Send Telegram notification
-        if chore.completed:
-            message = f"✅ <b>{staff_name}</b> completed: {chore.description}"
-            if comment:
-                message += f"\n💬 Comment: {comment}"
-            send_telegram_message(message)
-        elif comment:  # If there's a comment but task is not completed
-            message = f"💬 <b>{staff_name}</b> commented on {chore.description}: {comment}"
-            send_telegram_message(message)
+        # Update chore completion
+        chore.completed = data.get("completed", False)
+        chore.completed_by = data.get("staff_name") if chore.completed else None
+        chore.completed_at = datetime.now() if chore.completed else None
 
         db.commit()
-        logger.info(f"Successfully updated chore {chore_id}")
-        return {"completed": chore.completed}
+
+        # Broadcast the update to all connected clients
+        await manager.broadcast({
+            "type": "chore_update",
+            "chore_id": chore_id,
+            "completed": chore.completed,
+            "completed_by": chore.completed_by,
+            "completed_at": chore.completed_at.isoformat() if chore.completed_at else None
+        })
+
+        return {"status": "success"}
     except Exception as e:
-        logger.error(f"Error toggling chore {chore_id}: {str(e)}", exc_info=True)
-        db.rollback()
+        logger.error(f"Error toggling chore: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/sections/{section_id}/complete")
